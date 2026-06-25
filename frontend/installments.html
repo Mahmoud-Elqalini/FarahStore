@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarahStore - الأقساط</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .page-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+    .page-toolbar h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin: 0;
+    }
+    .filters-group {
+      display: flex;
+      gap: 15px;
+      flex: 1;
+      justify-content: flex-end;
+    }
+    .search-box {
+      flex: 1;
+      max-width: 300px;
+      position: relative;
+    }
+
+    /* Metrics Cards */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .metric-card {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .metric-title {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .metric-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--text-color);
+    }
+    .metric-danger { color: var(--danger-color); }
+    .metric-warning { color: var(--warning-color); }
+
+    /* Table Styles */
+    .table-container {
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      overflow-x: auto;
+      position: relative;
+      min-height: 200px;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 15px; text-align: right; border-bottom: 1px solid var(--border-color); }
+    th { background-color: var(--bg-color); color: var(--text-secondary); font-weight: 600; }
+    
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: inline-block;
+    }
+    .status-late { background: #ffebee; color: var(--danger-color); }
+    .status-pending { background: #fff8e1; color: var(--warning-color); }
+    .status-paid { background: #e8f5e9; color: var(--status-completed); }
+
+    .btn-sm { padding: 6px 12px; font-size: 0.85rem; }
+
+    .spinner-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      border-radius: var(--border-radius);
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 4px solid var(--border-color);
+      border-top-color: var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Form Grid */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+    .form-group.full-width { grid-column: 1 / -1; }
+    input[disabled], select[disabled] { background-color: #f5f5f5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">FarahStore 💎</div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="nav-item"><span>لوحة التحكم</span></a>
+        <a href="categories.html" class="nav-item"><span>الأقسام</span></a>
+        <a href="suppliers.html" class="nav-item"><span>الموردين</span></a>
+        <a href="products.html" class="nav-item"><span>المنتجات</span></a>
+        <a href="customers.html" class="nav-item"><span>العملاء</span></a>
+        <a href="orders.html" class="nav-item"><span>الطلبات</span></a>
+        <a href="installments.html" class="nav-item active"><span>الأقساط</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <h1>إدارة الأقساط والمتابعة</h1>
+      </header>
+
+      <div class="content-area">
+        
+        <!-- Metrics -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <span class="metric-title">إجمالي المبالغ غير المدفوعة</span>
+            <span class="metric-value metric-warning" id="totalUnpaid">ج.م 0.00</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-title">عدد الأقساط المتأخرة</span>
+            <span class="metric-value metric-danger" id="lateCount">0</span>
+          </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="page-toolbar">
+          <div style="display: flex; gap: 15px; align-items: center; flex: 1;">
+            <h2>سجل الأقساط</h2>
+            <div class="search-box" style="width: 250px;">
+              <input type="text" id="searchInput" class="form-control" placeholder="بحث باسم العميل أو رقم القسط/الطلب...">
+            </div>
+          </div>
+          <div class="filters-group">
+            <select class="form-control" id="statusFilter" style="width: 150px;">
+              <option value="All">كل الحالات</option>
+              <option value="Late">متأخر (Late)</option>
+              <option value="Pending">مُعلق (Pending)</option>
+              <option value="Paid">مدفوع (Paid)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-container">
+          <div class="spinner-overlay" id="tableLoading">
+            <div class="spinner"></div>
+          </div>
+          <table id="installmentsTable">
+            <thead>
+              <tr>
+                <th>رقم</th>
+                <th>العميل</th>
+                <th>رقم الطلب</th>
+                <th>المبلغ</th>
+                <th>تاريخ الاستحقاق</th>
+                <th>تاريخ الدفع</th>
+                <th>الحالة</th>
+                <th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="installmentsTbody"></tbody>
+          </table>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Edit Installment Modal -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>تعديل بيانات القسط</h3>
+        <button class="close-modal" onclick="closeEditModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="editForm">
+          <input type="hidden" id="editInstallmentId">
+          
+          <div class="form-grid">
+            <div class="form-group full-width">
+              <label>العميل (ورقم الطلب)</label>
+              <input type="text" id="editCustomerInfo" disabled>
+            </div>
+            
+            <div class="form-group">
+              <label>مبلغ القسط</label>
+              <input type="text" id="editAmount" disabled>
+            </div>
+            
+            <div class="form-group">
+              <label>تاريخ الاستحقاق <span style="color:red">*</span></label>
+              <input type="date" id="editDueDate" required>
+            </div>
+
+            <div class="form-group">
+              <label>الحالة <span style="color:red">*</span></label>
+              <select id="editStatus" required>
+                <option value="Pending">Pending (مُعلق)</option>
+                <option value="Paid">Paid (مدفوع)</option>
+                <option value="Late" disabled>Late (متأخر) - يُحسب تلقائياً</option>
+              </select>
+              <small style="color: var(--text-secondary); display: block; margin-top: 5px;">
+                ملاحظة: تأخير السداد يجعله Late أوتوماتيكياً
+              </small>
+            </div>
+
+            <div class="form-group">
+              <label>تاريخ الدفع (إن وُجد)</label>
+              <input type="date" id="editPaymentDate">
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeEditModal()">إلغاء</button>
+            <button type="submit" class="btn btn-primary" id="btnSaveEdit">حفظ التعديلات</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Confirmation Modal -->
+  <div class="modal-overlay" id="paymentModal">
+    <div class="modal" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3>تأكيد تحصيل القسط</h3>
+        <button class="close-modal" onclick="closePaymentModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>هل أنت متأكد من تسجيل القسط رقم <strong id="paymentInstallmentId"></strong> كقسط مدفوع؟</p>
+        <p style="color: var(--status-completed); font-size: 0.9em; margin-top: 10px;">سيتم تعيين تاريخ الدفع لليوم الحالي.</p>
+        <div class="modal-actions" style="margin-top: 20px;">
+          <button type="button" class="btn btn-secondary" onclick="closePaymentModal()">إلغاء</button>
+          <button type="button" class="btn btn-primary" id="btnConfirmPayment">تأكيد التحصيل</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/installments.js"></script>
+</body>
+</html>

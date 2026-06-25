@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarahStore - لوحة التحكم</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Dashboard Specific Styles */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .stat-title {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--primary);
+      line-height: 1.2;
+    }
+
+    .stat-details {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: auto;
+    }
+
+    .section-title {
+      margin-bottom: 16px;
+      font-size: 1.3rem;
+      font-weight: 700;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        FarahStore 💎
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="nav-item active">
+          <span>لوحة التحكم</span>
+        </a>
+        <a href="categories.html" class="nav-item"><span>الأقسام</span></a>
+        <a href="suppliers.html" class="nav-item"><span>الموردين</span></a>
+        <a href="products.html" class="nav-item"><span>المنتجات</span></a>
+        <a href="customers.html" class="nav-item"><span>العملاء</span></a>
+        <a href="orders.html" class="nav-item"><span>الطلبات</span></a>
+        <a href="installments.html" class="nav-item">
+          <span>الأقساط</span>
+          <span class="nav-badge" id="sidebar-late-badge" style="display: none;">0</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="topbar">
+        <h1>الرئيسية / لوحة التحكم</h1>
+      </header>
+
+      <div class="content-area">
+
+        <!-- Stats Grid -->
+        <div class="dashboard-grid">
+          <!-- Sales Card -->
+          <div class="card stat-card">
+            <div class="stat-title">المبيعات الكلية</div>
+            <div class="stat-value" id="sales-total">ج.م 0.00</div>
+            <div class="stat-details">
+              <span class="status-badge badge-completed" id="sales-completed">مكتملة: ج.م 0.00</span>
+            </div>
+          </div>
+
+          <!-- CRM & Inventory Card -->
+          <div class="card stat-card">
+            <div class="stat-title">العملاء والمنتجات</div>
+            <div style="display: flex; gap: 40px; margin-top: 5px;">
+              <div>
+                <div style="font-size:0.9rem; color:var(--text-muted);">عملاء</div>
+                <div class="stat-value" style="font-size:1.8rem;" id="customers-count">0</div>
+              </div>
+              <div>
+                <div style="font-size:0.9rem; color:var(--text-muted);">منتجات</div>
+                <div class="stat-value" style="font-size:1.8rem;" id="products-count">0</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Orders Card -->
+          <div class="card stat-card">
+            <div class="stat-title">الطلبات (<span id="orders-total">0</span>)</div>
+            <div class="stat-details" style="margin-top: 10px;">
+              <span class="status-badge badge-active" id="orders-active">نشط: 0</span>
+              <span class="status-badge badge-completed" id="orders-completed">مكتمل: 0</span>
+              <span class="status-badge badge-cancelled" id="orders-cancelled">ملغي: 0</span>
+            </div>
+          </div>
+
+          <!-- Installments Card -->
+          <div class="card stat-card">
+            <div class="stat-title">متأخرات الأقساط</div>
+            <div class="stat-value" style="color: var(--status-late);" id="installments-late-amount">ج.م 0.00</div>
+            <div class="stat-details">
+              <span class="status-badge badge-pending" id="installments-pending">معلق: 0</span>
+              <span class="status-badge badge-late" id="installments-late">متأخر: 0</span>
+            </div>
+          </div>
+
+          <!-- Profit Card -->
+          <div class="card stat-card">
+            <div class="stat-title">إجمالي الأرباح</div>
+            <div class="stat-value" style="color: var(--status-completed);" id="sales-profit">ج.م 0.00</div>
+          </div>
+        </div>
+
+        <!-- Low Stock Table -->
+        <h2 class="section-title">منتجات تقترب من النفاذ (أقل من 10)</h2>
+        <div class="table-container">
+          <div class="table-loading-overlay" id="table-loading">
+            <div class="spinner"></div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>رقم المنتج</th>
+                <th>اسم المنتج</th>
+                <th>الكمية المتبقية</th>
+              </tr>
+            </thead>
+            <tbody id="low-stock-table-body">
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Top Selling Products Table -->
+        <h2 class="section-title" style="margin-top: 30px;">أكثر المنتجات مبيعاً</h2>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>اسم المنتج</th>
+                <th>الكمية المباعة</th>
+              </tr>
+            </thead>
+            <tbody id="top-selling-table-body">
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Upcoming Installments Table -->
+        <h2 class="section-title" style="margin-top: 30px;">أقساط مستحقة هذا الأسبوع</h2>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>اسم العميل</th>
+                <th>المبلغ</th>
+                <th>تاريخ الاستحقاق</th>
+              </tr>
+            </thead>
+            <tbody id="upcoming-installments-body">
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/app.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+
+</html>

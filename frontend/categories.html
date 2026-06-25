@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarahStore - الأقسام</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .page-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .page-toolbar h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin: 0;
+    }
+    
+    /* Toggle switch for showing inactive */
+    .toggle-inactive {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted, #9ca3af);
+      cursor: pointer;
+      background: rgba(0,0,0,0.1);
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+      user-select: none;
+    }
+    .toggle-inactive:hover {
+      background: rgba(0,0,0,0.2);
+      border-color: var(--primary-color, #8b5cf6);
+    }
+    .toggle-switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      background-color: var(--bg-dark, #121212);
+      border-radius: 20px;
+      transition: all 0.3s ease;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 16px;
+      height: 16px;
+      background-color: var(--text-muted, #9ca3af);
+      border-radius: 50%;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .toggle-inactive input {
+      display: none;
+    }
+    .toggle-inactive input:checked + .toggle-switch {
+      background-color: var(--status-completed, #10b981);
+    }
+    .toggle-inactive input:checked + .toggle-switch::after {
+      transform: translateX(-16px);
+      background-color: #fff;
+    }
+    .toggle-inactive input:checked ~ .toggle-label {
+      color: var(--text-main, #f3f4f6);
+    }
+
+    .category-card.inactive {
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        FarahStore 💎
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="nav-item"><span>لوحة التحكم</span></a>
+        <a href="categories.html" class="nav-item active"><span>الأقسام</span></a>
+        <a href="suppliers.html" class="nav-item"><span>الموردين</span></a>
+        <a href="products.html" class="nav-item"><span>المنتجات</span></a>
+        <a href="customers.html" class="nav-item"><span>العملاء</span></a>
+        <a href="orders.html" class="nav-item"><span>الطلبات</span></a>
+        <a href="installments.html" class="nav-item"><span>الأقساط</span></a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="topbar">
+        <h1>الأقسام</h1>
+      </header>
+
+      <div class="content-area">
+
+        <!-- Toolbar -->
+        <div class="page-toolbar">
+          <div style="display: flex; gap: 15px; align-items: center; flex: 1;">
+            <h2>قائمة الأقسام</h2>
+            <label class="toggle-inactive">
+              <input type="checkbox" id="showInactive">
+              <div class="toggle-switch"></div>
+              <span class="toggle-label">عرض المعطلة</span>
+            </label>
+          </div>
+          <button class="btn btn-primary" onclick="openAddModal()">+ إضافة قسم جديد</button>
+        </div>
+
+        <!-- Categories Cards Grid -->
+        <div class="categories-grid" id="categories-grid">
+          <!-- Cards via JS -->
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal-overlay" id="category-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="modal-title">إضافة قسم</span>
+        <button class="btn btn-secondary" onclick="closeModal('category-modal')" style="padding: 4px 10px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="category-id">
+        <div class="form-group">
+          <label for="category-name">اسم القسم</label>
+          <input type="text" id="category-name" class="form-control" placeholder="مثال: أجهزة كهربائية">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('category-modal')">إلغاء</button>
+        <button class="btn btn-primary" id="save-btn" onclick="saveCategory()">حفظ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deactivate Confirmation Modal -->
+  <div class="modal-overlay" id="deactivateModal">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <span>تأكيد التعطيل</span>
+        <button class="btn btn-secondary" onclick="closeDeactivateModal()" style="padding: 4px 10px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="text-align: center; font-size: 1rem; margin: 10px 0;">هل أنت متأكد من تعطيل القسم: <strong id="deactivateCategoryName"></strong>؟</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeDeactivateModal()">إلغاء</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmDeactivate" style="background: var(--status-cancelled);">تعطيل القسم</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/app.js"></script>
+  <script src="js/categories.js"></script>
+</body>
+</html>

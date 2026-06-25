@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarahStore - المنتجات</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .page-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+    .page-toolbar h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin: 0;
+    }
+    .search-box {
+      flex: 1;
+      min-width: 250px;
+      position: relative;
+    }
+    
+    /* Table specific styles */
+    .table-container {
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      overflow-x: auto;
+      position: relative;
+      min-height: 200px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+      display: none;
+    }
+    .empty-state.active {
+      display: block;
+    }
+    .spinner-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      border-radius: var(--border-radius);
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 4px solid var(--border-color);
+      border-top-color: var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 15px;
+      text-align: right;
+      border-bottom: 1px solid var(--border-color);
+    }
+    th {
+      background-color: var(--bg-color);
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 0.85rem;
+    }
+
+    /* Modal Form Grid */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    /* Status badge for active/inactive */
+    .status-active {
+      color: var(--status-completed);
+      font-weight: 600;
+    }
+    .status-inactive {
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+    .row-inactive {
+      opacity: 0.5;
+    }
+
+    /* Restock info in toast */
+    .restock-info {
+      text-align: right;
+      margin-top: 8px;
+      font-size: 0.9em;
+      line-height: 1.8;
+    }
+
+    /* Toggle switch for showing inactive */
+    .toggle-inactive {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted, #9ca3af);
+      cursor: pointer;
+      background: rgba(0,0,0,0.1);
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+      user-select: none;
+    }
+    .toggle-inactive:hover {
+      background: rgba(0,0,0,0.2);
+      border-color: var(--primary-color, #8b5cf6);
+    }
+    .toggle-switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      background-color: var(--bg-dark, #121212);
+      border-radius: 20px;
+      transition: all 0.3s ease;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      right: 2px; /* RTL layout */
+      width: 16px;
+      height: 16px;
+      background-color: var(--text-muted, #9ca3af);
+      border-radius: 50%;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .toggle-inactive input {
+      display: none;
+    }
+    .toggle-inactive input:checked + .toggle-switch {
+      background-color: var(--status-completed, #10b981);
+    }
+    .toggle-inactive input:checked + .toggle-switch::after {
+      transform: translateX(-16px);
+      background-color: #fff;
+    }
+    .toggle-inactive input:checked ~ .toggle-label {
+      color: var(--text-main, #f3f4f6);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">FarahStore 💎</div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="nav-item"><span>لوحة التحكم</span></a>
+        <a href="categories.html" class="nav-item"><span>الأقسام</span></a>
+        <a href="suppliers.html" class="nav-item"><span>الموردين</span></a>
+        <a href="products.html" class="nav-item active"><span>المنتجات</span></a>
+        <a href="customers.html" class="nav-item"><span>العملاء</span></a>
+        <a href="orders.html" class="nav-item"><span>الطلبات</span></a>
+        <a href="installments.html" class="nav-item"><span>الأقساط</span></a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="topbar">
+        <h1>إدارة المنتجات</h1>
+      </header>
+
+      <div class="content-area">
+        
+        <!-- Toolbar -->
+        <div class="page-toolbar">
+          <div style="display: flex; gap: 15px; align-items: center; flex: 1;">
+            <h2>قائمة المنتجات</h2>
+            <div class="search-box" style="max-width: 300px; flex: 1;">
+              <input type="text" id="searchInput" class="form-control" placeholder="بحث بالاسم أو الباركود أو الكود..." autocomplete="off">
+            </div>
+            <label class="toggle-inactive">
+              <input type="checkbox" id="showInactive">
+              <div class="toggle-switch"></div>
+              <span class="toggle-label">عرض المعطلة</span>
+            </label>
+          </div>
+          <button class="btn btn-primary" id="btnAddProduct" onclick="openProductModal()">+ إضافة منتج جديد</button>
+        </div>
+
+        <!-- Data Table -->
+        <div class="table-container">
+          <div class="spinner-overlay" id="tableLoading">
+            <div class="spinner"></div>
+          </div>
+          
+          <table id="productsTable">
+            <thead>
+              <tr>
+                <th>رقم</th>
+                <th>كود SKU</th>
+                <th>اسم المنتج</th>
+                <th>باركود</th>
+                <th>القسم</th>
+                <th>المورد</th>
+                <th>سعر الشراء</th>
+                <th>سعر البيع</th>
+                <th>المخزون</th>
+                <th>الحالة</th>
+                <th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="productsTbody">
+              <!-- Rows via JS -->
+            </tbody>
+          </table>
+
+          <div class="empty-state" id="emptyState">
+            <h3>لا توجد منتجات متاحة</h3>
+            <p>قم بإضافة منتجات جديدة أو تأكد من كلمات البحث.</p>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Product Form Modal -->
+  <div class="modal-overlay" id="productModal">
+    <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <span id="modalTitle">إضافة منتج جديد</span>
+        <button class="btn btn-secondary" onclick="closeProductModal()" style="padding: 4px 10px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="productForm">
+          <input type="hidden" id="productId">
+          
+          <div class="form-grid">
+            <!-- SKU (shown only in edit mode, read-only) -->
+            <div class="form-group full-width" id="skuGroup" style="display: none;">
+              <label>كود المنتج (SKU) — يتولد تلقائياً</label>
+              <input type="text" id="productSku" class="form-control" disabled>
+            </div>
+
+            <div class="form-group full-width">
+              <label>اسم المنتج <span style="color:red">*</span></label>
+              <input type="text" id="productName" class="form-control" placeholder="مثال: مكواة بخار تيفال" required>
+            </div>
+            
+            <div class="form-group">
+              <label>القسم <span style="color:red">*</span></label>
+              <select id="categoryId" class="form-control" required>
+                <option value="">-- اختر القسم --</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label>المورد <span style="color:red">*</span></label>
+              <select id="supplierId" class="form-control" required>
+                <option value="">-- اختر المورد --</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label>سعر الشراء (ج.م) <span style="color:red">*</span></label>
+              <input type="number" id="purchasePrice" class="form-control" min="0" step="0.01" placeholder="0.00" required>
+            </div>
+            
+            <div class="form-group">
+              <label>سعر البيع (ج.م) <span style="color:red">*</span></label>
+              <input type="number" id="sellingPrice" class="form-control" min="0" step="0.01" placeholder="0.00" required>
+            </div>
+            
+            <div class="form-group">
+              <label>الكمية في المخزون <span style="color:red">*</span></label>
+              <input type="number" id="stockQuantity" class="form-control" min="0" value="0" required>
+            </div>
+
+            <div class="form-group">
+              <label>باركود (اختياري)</label>
+              <input type="text" id="productBarcode" class="form-control" placeholder="مثال: 6221033001001">
+            </div>
+            
+            <div class="form-group full-width">
+              <label>الوصف (اختياري)</label>
+              <textarea id="productDescription" class="form-control" rows="2" placeholder="أضف وصفاً مختصراً للمنتج..."></textarea>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" onclick="closeProductModal()">إلغاء</button>
+            <button type="submit" class="btn btn-primary" id="btnSaveProduct">حفظ المنتج</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Restock Modal -->
+  <div class="modal-overlay" id="restockModal">
+    <div class="modal-content" style="max-width: 450px;">
+      <div class="modal-header">
+        <span>📦 إعادة تخزين — <strong id="restockProductName"></strong></span>
+        <button class="btn btn-secondary" onclick="closeRestockModal()" style="padding: 4px 10px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="restockForm">
+          <input type="hidden" id="restockProductId">
+
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label>الكمية الحالية</label>
+            <input type="text" id="restockCurrentQty" class="form-control" disabled>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label>الكمية المُضافة <span style="color:red">*</span></label>
+            <input type="number" id="restockQuantity" class="form-control" min="1" placeholder="مثال: 10" required>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label>سعر الشراء الجديد (ج.م) <span style="color:red">*</span></label>
+            <input type="number" id="restockPurchasePrice" class="form-control" min="0" step="0.01" placeholder="0.00" required>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label>سعر البيع الجديد (ج.م) <span style="color:var(--text-secondary);">(اختياري)</span></label>
+            <input type="number" id="restockSellingPrice" class="form-control" min="0" step="0.01" placeholder="اتركه فارغاً للاحتفاظ بالسعر الحالي">
+          </div>
+
+          <div class="modal-footer" style="margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" onclick="closeRestockModal()">إلغاء</button>
+            <button type="submit" class="btn btn-primary" id="btnConfirmRestock">تأكيد إعادة التخزين</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deactivate Confirmation Modal -->
+  <div class="modal-overlay" id="deactivateModal">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <span>تأكيد التعطيل</span>
+        <button class="btn btn-secondary" onclick="closeDeactivateModal()" style="padding: 4px 10px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="text-align: center; font-size: 1rem; margin: 10px 0;">هل أنت متأكد من تعطيل المنتج: <strong id="deactivateProductName"></strong>؟</p>
+        <p style="color: var(--text-secondary); font-size: 0.85rem; text-align: center;">المنتج لن يُحذف نهائياً، ويمكن إعادة تفعيله لاحقاً.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeDeactivateModal()">إلغاء</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmDeactivate" style="background: var(--status-cancelled);">تعطيل المنتج</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Axios for API requests -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <!-- Global Utils (Toasts, etc.) -->
+  <script src="js/app.js"></script>
+  <script src="js/products.js"></script>
+</body>
+</html>

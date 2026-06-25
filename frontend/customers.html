@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarahStore - العملاء</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .page-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .page-toolbar h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin: 0;
+    }
+    
+    /* Toggle switch for showing inactive */
+    .toggle-inactive {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted, #9ca3af);
+      cursor: pointer;
+      background: rgba(0,0,0,0.1);
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+      user-select: none;
+    }
+    .toggle-inactive:hover {
+      background: rgba(0,0,0,0.2);
+      border-color: var(--primary-color, #8b5cf6);
+    }
+    .toggle-switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      background-color: var(--bg-dark, #121212);
+      border-radius: 20px;
+      transition: all 0.3s ease;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 16px;
+      height: 16px;
+      background-color: var(--text-muted, #9ca3af);
+      border-radius: 50%;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .toggle-inactive input {
+      display: none;
+    }
+    .toggle-inactive input:checked + .toggle-switch {
+      background-color: var(--status-completed, #10b981);
+    }
+    .toggle-inactive input:checked + .toggle-switch::after {
+      transform: translateX(-16px);
+      background-color: #fff;
+    }
+    .toggle-inactive input:checked ~ .toggle-label {
+      color: var(--text-main, #f3f4f6);
+    }
+    
+    tr.inactive td {
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        FarahStore 💎
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="nav-item"><span>لوحة التحكم</span></a>
+        <a href="categories.html" class="nav-item"><span>الأقسام</span></a>
+        <a href="suppliers.html" class="nav-item"><span>الموردين</span></a>
+        <a href="products.html" class="nav-item"><span>المنتجات</span></a>
+        <a href="customers.html" class="nav-item active"><span>العملاء</span></a>
+        <a href="orders.html" class="nav-item"><span>الطلبات</span></a>
+        <a href="installments.html" class="nav-item"><span>الأقساط</span></a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="topbar">
+        <h1>العملاء</h1>
+      </header>
+
+      <div class="content-area">
+
+        <!-- Toolbar -->
+        <div class="page-toolbar">
+          <div style="display: flex; gap: 15px; align-items: center; flex: 1;">
+            <h2>قائمة العملاء</h2>
+            <input type="text" id="search-input" oninput="handleSearch(event)" placeholder="بحث باسم العميل..." class="form-control" style="width: 250px;">
+            <label class="toggle-inactive">
+              <input type="checkbox" id="showInactive">
+              <div class="toggle-switch"></div>
+              <span class="toggle-label">عرض المعطلة</span>
+            </label>
+          </div>
+          <button class="btn btn-primary" onclick="openAddModal()">+ إضافة عميل جديد</button>
+        </div>
+
+        <!-- Table -->
+        <div class="table-container">
+          <div class="table-loading-overlay" id="table-loading">
+            <div class="spinner"></div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>التسلسل</th>
+                <th>اسم العميل</th>
+                <th>الحالة</th>
+                <th>الهاتف</th>
+                <th>العنوان</th>
+                <th>ملاحظات</th>
+                <th>الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="customers-table-body">
+              <!-- Data via JS -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal-overlay" id="customer-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="modal-title">إضافة عميل</span>
+        <button class="btn btn-secondary" onclick="closeModal('customer-modal')" style="padding: 4px 10px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="customer-id">
+        <div class="form-group">
+          <label for="customer-name">اسم العميل *</label>
+          <input type="text" id="customer-name" class="form-control" placeholder="مثال: أحمد محمد">
+        </div>
+        <div class="form-group">
+          <label for="customer-phone">الهاتف *</label>
+          <input type="text" id="customer-phone" class="form-control" placeholder="مثال: 01012345678">
+        </div>
+        <div class="form-group">
+          <label for="customer-address">العنوان</label>
+          <input type="text" id="customer-address" class="form-control" placeholder="مثال: شارع التحرير، القاهرة">
+        </div>
+        <div class="form-group">
+          <label for="customer-notes">ملاحظات</label>
+          <textarea id="customer-notes" class="form-control" rows="3" placeholder="أي ملاحظات إضافية..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('customer-modal')">إلغاء</button>
+        <button class="btn btn-primary" onclick="saveCustomer()">حفظ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deactivate Confirmation Modal -->
+  <div class="modal-overlay" id="deactivateModal">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <span>تأكيد التعطيل</span>
+        <button class="btn btn-secondary" onclick="closeDeactivateModal()" style="padding: 4px 10px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="text-align: center; font-size: 1rem; margin: 10px 0;">هل أنت متأكد من تعطيل العميل: <strong id="deactivateCustomerName"></strong>؟</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeDeactivateModal()">إلغاء</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmDeactivate" style="background: var(--status-cancelled);">تعطيل العميل</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/app.js"></script>
+  <script src="js/customers.js"></script>
+</body>
+</html>
