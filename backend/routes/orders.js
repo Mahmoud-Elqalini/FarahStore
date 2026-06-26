@@ -47,6 +47,19 @@ router.get("/:id", async (req, res, next) => {
     const orderData = orderResult.rows[0];
     orderData.items = detailsResult.rows;
 
+    // Calculate remaining_balance
+    if (orderData.payment_type === 'Cash') {
+      orderData.remaining_balance = 0;
+    } else {
+      const remainingQuery = `
+        SELECT COALESCE(SUM(amount), 0) as remaining_balance
+        FROM installments
+        WHERE order_id = $1 AND status IN ('Pending', 'Late')
+      `;
+      const remainingResult = await pool.query(remainingQuery, [id]);
+      orderData.remaining_balance = Number(remainingResult.rows[0].remaining_balance);
+    }
+
     res.json(orderData);
   } catch (err) {
     next(err);

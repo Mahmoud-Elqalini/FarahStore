@@ -35,6 +35,8 @@ describe('POS UI Logic Tests (orders.js)', () => {
         normalizeArabic, 
         loadCustomers, 
         selectCustomer, 
+        handleCheckout,
+        addToCart,
         getCustomersCache: () => customersCache,
         getSelectedCustomerId: () => selectedCustomerId
       };
@@ -85,5 +87,33 @@ describe('POS UI Logic Tests (orders.js)', () => {
     const recent = JSON.parse(localStorage.getItem('recent_customers'));
     expect(recent.length).toBe(1);
     expect(recent[0].customer_id).toBe(1);
+  });
+
+  test('DOM min attribute is set correctly on load for installment date', () => {
+    const event = new Event('DOMContentLoaded');
+    document.dispatchEvent(event);
+    
+    const dateInput = document.getElementById('installments-first-date');
+    const today = new Date().toISOString().split('T')[0];
+    expect(dateInput.min).toBe(today);
+  });
+
+  test('handleCheckout prevents selecting a past date for installments', async () => {
+    // Add item to cart and select customer to pass initial validations
+    ordersModule.addToCart({ product_id: 1, product_name: 'Test', selling_price: 100, stock_quantity: 10 });
+    ordersModule.selectCustomer(1);
+    
+    // Set payment type to Installment
+    document.querySelector('input[name="payment_type"][value="Installment"]').checked = true;
+    document.getElementById('installments-months').value = 12;
+    
+    // Set past date
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - 5);
+    document.getElementById('installments-first-date').value = pastDate.toISOString().split('T')[0];
+    
+    await ordersModule.handleCheckout();
+    
+    expect(global.showToast).toHaveBeenCalledWith('عفواً، لا يمكن أن يكون تاريخ أول قسط في الماضي', 'error');
   });
 });

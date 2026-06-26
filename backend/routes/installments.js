@@ -1,18 +1,43 @@
 const router = require("express").Router();
 const pool = require("../config/db");
 
-// GET /api/installments — Get all installments
+// GET /api/installments — Get all installments (with optional filters)
 router.get("/", async (req, res, next) => {
   try {
-    const query = `
+    const { order_id, status } = req.query;
+    
+    let query = `
       SELECT i.*, o.customer_id, c.customer_name 
       FROM installments i
       LEFT JOIN orders o ON i.order_id = o.order_id
       LEFT JOIN customers c ON o.customer_id = c.customer_id
-      ORDER BY i.due_date ASC
+      WHERE 1=1
     `;
-    const result = await pool.query(query);
-    res.json(result.rows);
+    const values = [];
+    let paramIndex = 1;
+
+    if (order_id) {
+      query += ` AND i.order_id = $${paramIndex}`;
+      values.push(order_id);
+      paramIndex++;
+    }
+
+    if (status) {
+      query += ` AND i.status = $${paramIndex}`;
+      values.push(status);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY i.due_date ASC`;
+
+    const result = await pool.query(query, values);
+    
+    // Add invoice_number to response
+    const rows = result.rows.map(row => ({
+      ...row,
+      invoice_number: 'ORD-' + row.order_id
+    }));
+    res.json(rows);
   } catch (err) {
     next(err);
   }
@@ -32,28 +57,6 @@ router.get("/order/:order_id", async (req, res, next) => {
     `;
     const result = await pool.query(query, [order_id]);
     res.json(result.rows);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/installments/:id — Get single installment
-router.get("/:id", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const query = `
-      SELECT i.*, o.customer_id, c.customer_name 
-      FROM installments i
-      LEFT JOIN orders o ON i.order_id = o.order_id
-      LEFT JOIN customers c ON o.customer_id = c.customer_id
-      WHERE i.installment_id = $1
-    `;
-    const result = await pool.query(query, [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error_code: "NOT_FOUND", error: "Installment not found" });
-    }
-    res.json(result.rows[0]);
   } catch (err) {
     next(err);
   }
@@ -89,6 +92,69 @@ router.post("/", async (req, res, next) => {
 // PUT /api/installments/ — Handle missing ID
 router.put("/", (req, res, next) => {
   res.status(400).json({ error_code: "ID_REQUIRED", error: "Installment ID is required" });
+});
+
+// DELETE /api/installments/ — Handle missing ID
+router.delete("/", (req, res, next) => {
+  res.status(400).json({ error_code: "ID_REQUIRED", error: "Installment ID is required" });
+});
+
+
+// PATCH /api/installments/:id/pay — Mark single installment as Paid
+router.patch("/:id/pay", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const payment_date = req.body.payment_date || new Date().toISOString().split('T')[0];
+
+    const checkResult = await pool.query("SELECT * FROM installments WHERE installment_id = $1", [id]);
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error_code: "NOT_FOUND", error_ar: "القسط غير موجود", error: "Installment not found" });
+    }
+    
+    const existing = checkResult.rows[0];
+    if (!['Pending', 'Late'].includes(existing.status)) {
+      return res.status(400).json({ 
+        error_code: "ALREADY_PAID", 
+        error_ar: "القسط مدفوع بالفعل أو في حالة غير قابلة للتعديل",
+        error: "Installment cannot be paid in its current status"
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE installments 
+       SET status = 'Paid', payment_date = $1 
+       WHERE installment_id = $2 
+       RETURNING *`,
+      [payment_date, id]
+    );
+
+    res.json({ message: "تم تسجيل الدفع بنجاح", data: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+// GET /api/installments/:id — Get single installment
+router.get("/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const query = `
+      SELECT i.*, o.customer_id, c.customer_name 
+      FROM installments i
+      LEFT JOIN orders o ON i.order_id = o.order_id
+      LEFT JOIN customers c ON o.customer_id = c.customer_id
+      WHERE i.installment_id = $1
+    `;
+    const result = await pool.query(query, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error_code: "NOT_FOUND", error: "Installment not found" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // PUT /api/installments/:id — Update installment (Partial Update)
@@ -139,26 +205,13 @@ router.put("/:id", async (req, res, next) => {
   }
 });
 
-// DELETE /api/installments/ — Handle missing ID
-router.delete("/", (req, res, next) => {
-  res.status(400).json({ error_code: "ID_REQUIRED", error: "Installment ID is required" });
-});
-
-// DELETE /api/installments/:id — Delete installment
-router.delete("/:id", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query(
-      "DELETE FROM installments WHERE installment_id = $1 RETURNING *",
-      [id]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error_code: "NOT_FOUND", error: "Installment not found" });
-    }
-    res.json({ message: "Installment deleted" });
-  } catch (err) {
-    next(err);
-  }
+// DELETE /api/installments/:id — Disable deletion
+router.delete("/:id", (req, res) => {
+  res.status(405).json({ 
+    error_code: "NOT_ALLOWED", 
+    error_ar: "لا يمكن حذف الأقساط من النظام",
+    error: "Installment deletion is not allowed" 
+  });
 });
 
 module.exports = router;

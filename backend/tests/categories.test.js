@@ -94,21 +94,22 @@ describe('Categories API', () => {
       expect(res.body.error_code).toBe('NOT_FOUND');
     });
 
-    it('should return 400 LINKED_RECORDS_EXIST if category is linked to products', async () => {
-      const dbError = new Error();
-      dbError.code = '23503';
-      pool.query.mockRejectedValue(dbError);
+    it('should return 409 LINKED_RECORDS_EXIST if category is linked to products', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [{ product_id: 1 }] }); // SELECT returns linked product
 
       const res = await request(app).delete('/api/categories/1');
-      expect(res.status).toBe(400);
-      expect(res.body.error_code).toBe('LINKED_RECORDS_EXIST');
+      expect(res.status).toBe(409);
+      expect(res.body.error_code).toBe('CATEGORY_IN_USE');
     });
 
     it('should delete category successfully', async () => {
-      pool.query.mockResolvedValue({ rows: [{ category_id: 1 }] });
+      pool.query
+        .mockResolvedValueOnce({ rows: [] }) // SELECT (no products)
+        .mockResolvedValueOnce({ rows: [{ category_id: 1 }] }); // DELETE
+
       const res = await request(app).delete('/api/categories/1');
       expect(res.status).toBe(200);
-      expect(res.body.message).toBe('Category deleted');
+      expect(res.body.message).toBe('Category deactivated successfully');
     });
   });
 });
