@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarahStore - المبيعات (POS)</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .pos-container {
+      display: flex;
+      gap: 20px;
+      height: calc(100vh - 120px);
+      align-items: stretch;
+    }
+
+    /* Left Pane: Cart & Checkout */
+    .cart-pane {
+      flex: 1;
+      background: var(--bg-card);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      min-width: 400px;
+      border-left: 2px solid var(--border-color);
+    }
+
+    .cart-header {
+      padding: 15px;
+      border-bottom: 1px solid var(--border-color);
+      font-weight: 700;
+      font-size: 1.2rem;
+    }
+
+    .cart-items {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+
+    .cart-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .cart-table th,
+    .cart-table td {
+      padding: 10px;
+      text-align: right;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .qty-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .qty-btn {
+      background: var(--bg-dark);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .qty-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-danger {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+
+    .checkout-section {
+      padding: 15px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-dark);
+      border-radius: 0 0 var(--border-radius) var(--border-radius);
+    }
+
+    .checkout-total {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-align: left;
+      margin-bottom: 15px;
+    }
+
+    .payment-options {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .payment-btn {
+      flex: 1;
+      cursor: pointer;
+    }
+
+    .payment-btn input {
+      display: none;
+    }
+
+    .payment-btn-content {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px;
+      background: var(--bg-dark);
+      border: 2px solid var(--border-color);
+      border-radius: var(--border-radius);
+      font-weight: 600;
+      color: var(--text-main);
+      transition: all 0.2s ease;
+    }
+
+    .payment-btn input:checked+.payment-btn-content {
+      border-color: var(--primary);
+      color: var(--primary);
+      box-shadow: 0 0 10px rgba(108, 92, 231, 0.2);
+    }
+
+    .payment-btn:hover .payment-btn-content {
+      border-color: var(--primary);
+    }
+
+    .installment-fields {
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .btn-checkout {
+      width: 100%;
+      padding: 15px;
+      font-size: 1.1rem;
+    }
+
+    /* Right Pane: Catalog */
+    .catalog-pane {
+      flex: 1.5;
+      background: var(--bg-card);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .catalog-header {
+      padding: 15px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .catalog-grid {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 15px;
+      align-content: start;
+    }
+
+    .product-card {
+      background: var(--bg-dark);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      padding: 15px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .product-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+
+    .product-name {
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .product-price {
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .product-stock {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 5px;
+    }
+
+    .customer-card {
+      background: var(--bg-dark);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: right;
+    }
+
+    .customer-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+
+    .customer-card.selected {
+      border-color: var(--primary);
+      background: rgba(139, 92, 246, 0.1);
+      box-shadow: 0 0 0 2px var(--primary);
+    }
+
+    .customer-name {
+      font-weight: 600;
+      margin-bottom: 5px;
+      font-size: 0.95rem;
+      color: var(--text-main);
+    }
+
+    .customer-phone {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* Receipt Modal Specific */
+    .receipt-content {
+      text-align: center;
+      padding: 30px 20px 20px;
+    }
+
+    .success-icon {
+      width: 70px;
+      height: 70px;
+      background: rgba(39, 174, 96, 0.1);
+      color: var(--status-completed);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      margin: 0 auto 15px;
+      border: 2px solid var(--status-completed);
+      animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes popIn {
+      0% {
+        transform: scale(0);
+        opacity: 0;
+      }
+
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    .receipt-title {
+      font-size: 1.5rem;
+      margin-bottom: 5px;
+      color: var(--text-main);
+      font-weight: 700;
+    }
+
+    .receipt-subtitle {
+      color: var(--text-muted);
+      margin-bottom: 25px;
+      font-size: 0.95rem;
+    }
+
+    .receipt-card {
+      text-align: right;
+      background: var(--bg-dark);
+      padding: 20px;
+      border-radius: var(--border-radius);
+      margin-bottom: 25px;
+      border: 1px dashed var(--border-color);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .receipt-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 1.1rem;
+    }
+
+    .receipt-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .receipt-divider {
+      border: 0;
+      border-top: 1px dashed var(--border-color);
+      margin: 15px 0;
+    }
+
+    .fw-bold {
+      font-weight: 700;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      background-color: var(--bg-card) !important;
+      color: var(--text-main) !important;
+    }
+
+    /* Fix for browser autofill turning inputs white */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus,
+    input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 30px var(--bg-card) inset !important;
+      -webkit-text-fill-color: var(--text-main) !important;
+      transition: background-color 5000s ease-in-out 0s;
+    }
+
+    /* Hide the native datalist dropdown arrow (triangle) */
+    input[list]::-webkit-calendar-picker-indicator {
+      display: none !important;
+    }
+
+    .fs-large {
+      font-size: 1.25rem;
+      color: var(--primary);
+    }
+
+    .text-success {
+      color: var(--status-completed);
+    }
+
+    .text-danger {
+      color: #e74c3c;
+    }
+
+    .receipt-actions {
+      display: flex;
+      gap: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        FarahStore 💎
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="nav-item"><span>لوحة التحكم</span></a>
+        <a href="categories.html" class="nav-item"><span>الأقسام</span></a>
+        <a href="suppliers.html" class="nav-item"><span>الموردين</span></a>
+        <a href="products.html" class="nav-item"><span>المنتجات</span></a>
+        <a href="customers.html" class="nav-item"><span>العملاء</span></a>
+        <a href="orders.html" class="nav-item active"><span>المبيعات (POS)</span></a>
+        <a href="installments.html" class="nav-item">
+          <span>الأقساط</span>
+          <span class="nav-badge" id="sidebar-late-badge" style="display: none;">0</span>
+        </a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <h1>الرئيسية / المبيعات (نقطة البيع)</h1>
+      </header>
+
+      <div class="content-area">
+        <div class="pos-container">
+
+          <!-- Left Pane: Cart & Checkout -->
+          <div class="cart-pane">
+            <div class="cart-header">
+              سلة المشتريات
+            </div>
+            <div class="cart-items">
+              <table class="cart-table">
+                <thead>
+                  <tr>
+                    <th>المنتج</th>
+                    <th>السعر</th>
+                    <th>الكمية</th>
+                    <th>الإجمالي</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="cart-tbody">
+                  <!-- Cart items injected here -->
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-muted);">السلة فارغة</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="checkout-section">
+              <div class="checkout-total">
+                الإجمالي: <span id="cart-total">0.00</span> ج.م
+              </div>
+
+              <div class="payment-options">
+                <label class="payment-btn">
+                  <input type="radio" name="payment_type" value="Cash" checked>
+                  <span class="payment-btn-content">كاش</span>
+                </label>
+                <label class="payment-btn">
+                  <input type="radio" name="payment_type" value="Installment">
+                  <span class="payment-btn-content">تقسيط</span>
+                </label>
+              </div>
+
+              <div class="installment-fields" id="installment-fields">
+                <div class="form-group">
+                  <label>عدد الأشهر</label>
+                  <input type="number" id="installments-months" class="form-control" min="1" value="12">
+                </div>
+                <div class="form-group">
+                  <label>تاريخ أول قسط</label>
+                  <!-- // TODO: add date validation -->
+                  <input type="date" id="installments-first-date" class="form-control">
+                </div>
+              </div>
+
+              <button class="btn btn-primary btn-checkout" id="checkout-btn">✅ إتمام الطلب</button>
+            </div>
+          </div>
+
+          <!-- Right Pane: Catalog (Visually on the Left in RTL) -->
+          <div class="catalog-pane">
+
+            <!-- Top: Product Search -->
+            <div class="catalog-header" style="padding-bottom: 20px;">
+              <label
+                style="font-weight: 600; margin-bottom: 8px; display: block; font-size: 0.95rem; color: var(--text-muted);">البحث
+                عن المنتجات</label>
+              <input type="text" id="product-search" class="form-control"
+                placeholder="بحث بالاسم أو الباركود... (اضغط Enter)">
+            </div>
+
+            <!-- Middle: Product Grid -->
+            <div class="catalog-grid" id="catalog-grid" style="flex: 1; overflow-y: auto; padding: 20px;">
+              <!-- Products injected here -->
+            </div>
+
+            <!-- Bottom: Customer Search -->
+            <div
+              style="padding: 25px 20px 25px 20px; border-top: 2px solid var(--border-color); background: var(--bg-card); display: flex; flex-direction: column;">
+              <label
+                style="font-weight: 600; margin-bottom: 8px; display: block; font-size: 0.95rem; color: var(--primary);">تحديد
+                العميل (مطلوب لإتمام الطلب)</label>
+              <input type="text" id="customer-search" class="form-control"
+                placeholder="ابحث واختار العميل بالاسم أو رقم الهاتف..." autocomplete="off">
+
+              <div id="customer-grid"
+                style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 15px; max-height: 300px; overflow-y: auto;">
+                <!-- Customer cards injected here -->
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Receipt Modal -->
+  <div class="modal-overlay" id="receipt-modal">
+    <div class="modal-content"
+      style="max-width: 450px; border-top: 5px solid var(--status-completed); position: relative;">
+      <button
+        style="position: absolute; top: 15px; left: 15px; background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;"
+        onclick="closeReceiptModal()" title="إغلاق">&times;</button>
+      <div class="modal-body receipt-content">
+        <div class="success-icon">
+          <span>✓</span>
+        </div>
+        <h2 class="receipt-title">تم إتمام الطلب بنجاح!</h2>
+        <p class="receipt-subtitle">تم حفظ الفاتورة في النظام</p>
+
+        <div class="receipt-card">
+          <div class="receipt-row">
+            <span>رقم الفاتورة:</span>
+            <span id="receipt-invoice" class="fw-bold"></span>
+          </div>
+          <div class="receipt-row">
+            <span>نوع الدفع:</span>
+            <span id="receipt-payment" class="fw-bold"></span>
+          </div>
+          <hr class="receipt-divider">
+          <div class="receipt-row">
+            <span>الإجمالي:</span>
+            <span class="fw-bold fs-large"><span id="receipt-total"></span> ج.م</span>
+          </div>
+          <div class="receipt-row">
+            <span>المدفوع:</span>
+            <span class="text-success fw-bold"><span id="receipt-paid"></span> ج.م</span>
+          </div>
+          <div class="receipt-row">
+            <span>المتبقي:</span>
+            <span class="text-danger fw-bold"><span id="receipt-remaining"></span> ج.م</span>
+          </div>
+        </div>
+
+        <div class="receipt-actions">
+          <button class="btn btn-primary" onclick="closeReceiptModal()"
+            style="flex: 2; padding: 12px; font-size: 1.1rem;">إغلاق وبدء طلب جديد</button>
+          <!-- // TODO: implement print-specific CSS or print window -->
+          <button class="btn btn-secondary" onclick="window.print()" style="flex: 1; padding: 12px; font-size: 1.1rem;"
+            title="طباعة الفاتورة">طباعة</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="js/orders.js"></script>
+</body>
+
+</html>

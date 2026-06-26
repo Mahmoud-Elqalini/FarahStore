@@ -55,71 +55,129 @@ router.get("/:id", async (req, res, next) => {
 
 // POST /api/orders — Create new order
 router.post("/", async (req, res, next) => {
+  const client = await pool.connect();
   try {
-    const { p_customer_id, p_payment_type, p_total_amount, p_items } = req.body;
+    const { customer_id, payment_type, items, months, first_due_date } = req.body;
 
-    // Validations
-    if (!p_customer_id) {
-      return res.status(400).json({ error_code: "REQUIRED_FIELDS", error: "p_customer_id is required" });
+    // 1. Basic Validations
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error_code: "REQUIRED_FIELDS", error_ar: "السلة فارغة، أضف منتجاً واحداً على الأقل", error: "Items array is empty" });
     }
-    if (!p_payment_type) {
-      return res.status(400).json({ error_code: "REQUIRED_FIELDS", error: "p_payment_type is required" });
+    if (payment_type !== "Cash" && payment_type !== "Installment") {
+      return res.status(400).json({ error_code: "INVALID_PAYMENT_TYPE", error_ar: "نوع الدفع غير صحيح", error: "Invalid payment type" });
     }
-    if (p_total_amount === undefined) {
-      return res.status(400).json({ error_code: "REQUIRED_FIELDS", error: "p_total_amount is required" });
+    if (!customer_id) {
+      return res.status(400).json({ error_code: "REQUIRED_FIELDS", error_ar: "العميل مطلوب", error: "Customer ID is required" });
     }
-    if (!p_items) {
-      return res.status(400).json({ error_code: "REQUIRED_FIELDS", error: "p_items is required" });
-    }
-
-    if (p_payment_type !== "Cash" && p_payment_type !== "Installment") {
-      return res.status(400).json({ error_code: "INVALID_PAYMENT_TYPE", error: "p_payment_type must be either 'Cash' or 'Installment'" });
-    }
-
-    if (p_total_amount <= 0) {
-      return res.status(400).json({ error_code: "ZERO_OR_NEGATIVE_AMOUNT", error: "p_total_amount must be greater than zero" });
-    }
-
-    if (!Array.isArray(p_items) || p_items.length === 0) {
-      return res.status(400).json({ error_code: "REQUIRED_FIELDS", error: "p_items must be a non-empty array" });
-    }
-
-    for (let i = 0; i < p_items.length; i++) {
-      const item = p_items[i];
-      if (!item.product_id) {
-        return res.status(400).json({
-          error_code: "REQUIRED_FIELDS",
-          error: `Item at index ${i} is missing product_id`,
-          error_ar: `الصنف رقم ${i + 1} يفتقد لمعرف المنتج`
-        });
+    if (payment_type === "Installment") {
+      if (!months || months < 1) {
+        return res.status(400).json({ error_code: "INVALID_INSTALLMENT_DATA", error_ar: "بيانات التقسيط غير صحيحة", error: "Invalid months" });
       }
-      if (item.quantity === undefined || item.quantity <= 0) {
-        return res.status(400).json({
-          error_code: "ZERO_OR_NEGATIVE_AMOUNT",
-          error: `Item at index ${i} must have quantity greater than 0`,
-          error_ar: `الصنف رقم ${i + 1} يجب أن تكون كميته أكبر من صفر`
-        });
-      }
-      if (item.unit_price === undefined || item.unit_price <= 0) {
-        return res.status(400).json({
-          error_code: "ZERO_OR_NEGATIVE_AMOUNT",
-          error: `Item at index ${i} must have unit_price greater than 0`,
-          error_ar: `الصنف رقم ${i + 1} يجب أن يكون سعر وحدته أكبر من صفر`
-        });
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (!first_due_date || new Date(first_due_date) < today) {
+        return res.status(400).json({ error_code: "INVALID_INSTALLMENT_DATA", error_ar: "بيانات التقسيط غير صحيحة", error: "Invalid first_due_date" });
       }
     }
 
-    // Convert p_items to JSON string for PostgreSQL JSONB
-    const itemsJson = JSON.stringify(p_items);
+    for (let i = 0; i < items.length; i++) {
+      if (!items[i].product_id || items[i].quantity === undefined || items[i].quantity <= 0 || !Number.isInteger(items[i].quantity)) {
+        return res.status(400).json({ error_code: "VALIDATION_ERROR", error_ar: "بيانات المنتجات غير صحيحة", error: `Invalid item at index ${i}` });
+      }
+    }
 
-    const result = await pool.query(
-      `SELECT * FROM create_order($1, $2, $3, $4::jsonb)`,
-      [p_customer_id, p_payment_type, p_total_amount, itemsJson]
+    // 2. Validate Customer
+    const custRes = await client.query('SELECT is_active FROM customers WHERE customer_id = $1', [customer_id]);
+    if (custRes.rowCount === 0 || !custRes.rows[0].is_active) {
+      return res.status(400).json({ error_code: "NOT_FOUND", error_ar: "العميل غير موجود أو محذوف", error: "Customer not found or inactive" });
+    }
+
+    // 3. Fetch Prices & Validate Products
+    let total_amount = 0;
+    const finalItems = [];
+
+    for (const item of items) {
+      const prodRes = await client.query('SELECT product_name, selling_price, is_active FROM products WHERE product_id = $1', [item.product_id]);
+      if (prodRes.rowCount === 0 || !prodRes.rows[0].is_active) {
+        return res.status(400).json({ error_code: "NOT_FOUND", error_ar: "المنتج غير موجود أو محذوف", error: `Product ${item.product_id} not found or inactive` });
+      }
+      const price = Number(prodRes.rows[0].selling_price);
+      total_amount += price * item.quantity;
+      finalItems.push({
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: price // Needed by create_order DB function
+      });
+    }
+
+    const itemsJsonb = JSON.stringify(finalItems);
+
+    // 4. Transaction
+    await client.query('BEGIN');
+
+    const orderRes = await client.query(
+      `SELECT create_order($1, $2, $3, $4::jsonb) AS order_id`,
+      [customer_id, payment_type, total_amount, itemsJsonb]
     );
+    const order_id = orderRes.rows[0].order_id;
 
-    res.status(201).json({ message: "Order created successfully", data: result.rows[0] });
+    if (payment_type === "Installment") {
+      await client.query(
+        `SELECT generate_installments($1, $2, $3)`,
+        [order_id, months, first_due_date]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    // 5. Success Response
+    const paid_amount = payment_type === 'Cash' ? total_amount : 0;
+    const remaining_balance = payment_type === 'Installment' ? total_amount : 0;
+
+    res.status(201).json({
+      success: true,
+      order_id,
+      invoice_number: `ORD-${order_id}`,
+      created_at: new Date().toISOString(),
+      total_amount,
+      payment_type,
+      paid_amount,
+      remaining_balance,
+      message: "تم إنشاء الفاتورة بنجاح"
+    });
+
   } catch (err) {
+    await client.query('ROLLBACK');
+    // Check if error is from Postgres RAISE EXCEPTION for stock
+    if (err.message && err.message.includes('Insufficient stock for product')) {
+      const match = err.message.match(/product\s+(\d+)/i);
+      const productId = match ? match[1] : null;
+      if (!productId) {
+        return res.status(400).json({ error_code: "INSUFFICIENT_STOCK", error_ar: "المخزون لا يكفي لبعض المنتجات", error: err.message });
+      }
+      try {
+        const pRes = await pool.query('SELECT product_name, stock_quantity FROM products WHERE product_id = $1', [productId]);
+        if (pRes.rowCount > 0) {
+          const prodName = pRes.rows[0].product_name;
+          return res.status(400).json({
+            error_code: "INSUFFICIENT_STOCK",
+            error_ar: `المنتج '${prodName}' متاح بكمية ${pRes.rows[0].stock_quantity} فقط`,
+            error: err.message
+          });
+        }
+      } catch (e) {
+        // Ignore fallback query error
+      }
+      
+      return res.status(400).json({
+        error_code: "INSUFFICIENT_STOCK",
+        error_ar: `المخزون لا يكفي للمنتج رقم ${productId}`,
+        error: err.message
+      });
+    }
     next(err);
+  } finally {
+    client.release();
   }
 });
 
@@ -142,9 +200,15 @@ router.put("/:id", async (req, res, next) => {
 
     // 2. Merge existing data with new data
     const { body } = req;
+    if (body.total_amount !== undefined) {
+      return res.status(400).json({ error_code: "INVALID_FIELD", error_ar: "لا يمكن تعديل الإجمالي", error: "total_amount cannot be updated via PUT" });
+    }
+    if (body.payment_type !== undefined) {
+      return res.status(400).json({ error_code: "INVALID_FIELD", error_ar: "لا يمكن تعديل نوع الدفع بعد إنشاء الطلب", error: "payment_type cannot be updated via PUT" });
+    }
     const customer_id = body.customer_id !== undefined ? body.customer_id : existing.customer_id;
-    const payment_type = body.payment_type !== undefined ? body.payment_type : existing.payment_type;
-    const total_amount = body.total_amount !== undefined ? body.total_amount : existing.total_amount;
+    const payment_type = existing.payment_type;
+    const total_amount = existing.total_amount;
 
     // 3. Validations on merged data
     if (payment_type !== "Cash" && payment_type !== "Installment") {
@@ -156,10 +220,8 @@ router.put("/:id", async (req, res, next) => {
 
     // 4. Update Database
     const result = await pool.query(
-      `UPDATE orders 
-       SET customer_id = $1, payment_type = $2, total_amount = $3 
-       WHERE order_id = $4 RETURNING *`,
-      [customer_id, payment_type, total_amount, id]
+      `UPDATE orders SET customer_id = $1 WHERE order_id = $2 RETURNING *`,
+      [customer_id, id]
     );
 
     res.json({ message: "Order updated successfully", data: result.rows[0] });
@@ -177,14 +239,20 @@ router.delete("/", (req, res, next) => {
 router.delete("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      "DELETE FROM orders WHERE order_id = $1 RETURNING *",
-      [id]
-    );
-    if (result.rows.length === 0) {
+    
+    const checkResult = await pool.query("SELECT order_status FROM orders WHERE order_id = $1", [id]);
+    if (checkResult.rows.length === 0) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Order not found" });
     }
-    res.json({ message: "Order deleted" });
+    if (checkResult.rows[0].order_status === 'Cancelled') {
+      return res.status(400).json({ error_code: "ALREADY_CANCELLED", error_ar: "الطلب ملغي بالفعل", error: "Order is already cancelled" });
+    }
+
+    const result = await pool.query(
+      "UPDATE orders SET order_status = 'Cancelled' WHERE order_id = $1 RETURNING *",
+      [id]
+    );
+    res.json({ message: "تم إلغاء الطلب بنجاح", data: result.rows[0] });
   } catch (err) {
     next(err);
   }

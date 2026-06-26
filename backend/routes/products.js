@@ -46,7 +46,7 @@ router.get("/search", async (req, res, next) => {
       ${activeFilter}
       ORDER BY
           CASE WHEN p.barcode = $1 THEN 0
-               WHEN p.sku = $1 THEN 1
+               WHEN p.product_name ILIKE $1 || '%' THEN 1
                ELSE 2 END,
           p.product_name
       LIMIT 20
