@@ -31,6 +31,7 @@ function normalizeArabic(text) {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadCustomers();
+  searchProducts(''); // Load recent products initially
   
   // Set default first due date (30 days from now)
   const defaultDate = new Date();
@@ -434,7 +435,15 @@ async function handleCheckout() {
     const res = await apiCall('/orders', 'POST', payload);
     
     // Show Receipt
+    const customer = customersCache.find(c => c.customer_id === parseInt(selectedCustomerId));
+    const customerName = customer ? customer.customer_name : 'غير محدد';
+    
+    const orderDate = new Date(res.created_at);
+    const formattedDateTime = orderDate.toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' });
+
     document.getElementById('receipt-invoice').textContent = res.invoice_number;
+    document.getElementById('receipt-customer').textContent = customerName;
+    document.getElementById('receipt-datetime').textContent = formattedDateTime;
     document.getElementById('receipt-payment').textContent = res.payment_type === 'Cash' ? 'كاش' : 'تقسيط';
     document.getElementById('receipt-total').textContent = Number(res.total_amount).toFixed(2);
     document.getElementById('receipt-paid').textContent = Number(res.paid_amount).toFixed(2);
@@ -445,9 +454,15 @@ async function handleCheckout() {
     // We only reset cart when modal is closed
   } catch (err) {
     console.error('Checkout failed:', err);
-    // Error is handled by apiCall toast (including specific DB message!)
-    btn.disabled = false;
-    btn.textContent = '✅ إتمام الطلب';
+    // JS Runtime errors won't be handled by the apiCall toast, so catch them here
+    if (err instanceof TypeError || err instanceof ReferenceError) {
+      showToast('خطأ في واجهة النظام: ' + err.message, 'error');
+    }
+    const btn = document.getElementById('checkout-btn');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '✅ إتمام الطلب';
+    }
   }
 }
 

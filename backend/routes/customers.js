@@ -1,40 +1,46 @@
 const router = require("express").Router();
-const pool = require("../config/db");
+const db = require("../config/db");
 
 // GET /api/customers — Get all customers
-router.get("/", async (req, res, next) => {
+router.get("/", (req, res, next) => {
   try {
     const includeInactive = req.query.include_inactive === 'true';
-    const whereClause = includeInactive ? '' : 'WHERE is_active = TRUE';
+    const whereClause = includeInactive ? '' : 'WHERE is_active = 1';
 
-    const result = await pool.query(
+    const result = db.prepare(
       `SELECT * FROM customers ${whereClause} ORDER BY customer_id`
-    );
-    res.json(result.rows);
+    ).all();
+    
+    const formattedResult = result.map(r => ({
+      ...r,
+      is_active: r.is_active === 1
+    }));
+    
+    res.json(formattedResult);
   } catch (err) {
     next(err);
   }
 });
 
 // GET /api/customers/:id — Get single customer
-router.get("/:id", async (req, res, next) => {
+router.get("/:id", (req, res, next) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      "SELECT * FROM customers WHERE customer_id = $1",
-      [id]
-    );
-    if (result.rows.length === 0) {
+    const customer = db.prepare("SELECT * FROM customers WHERE customer_id = ?").get(id);
+    
+    if (!customer) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Customer not found" });
     }
-    res.json(result.rows[0]);
+    
+    customer.is_active = customer.is_active === 1;
+    res.json(customer);
   } catch (err) {
     next(err);
   }
 });
 
 // POST /api/customers — Create new customer
-router.post("/", async (req, res, next) => {
+router.post("/", (req, res, next) => {
   try {
     const { customer_name, phone, address, notes } = req.body;
     
@@ -42,11 +48,18 @@ router.post("/", async (req, res, next) => {
       return res.status(400).json({ error_code: "REQUIRED_FIELDS", error: "customer_name and phone are required" });
     }
 
-    const result = await pool.query(
-      "INSERT INTO customers (customer_name, phone, address, notes) VALUES ($1, $2, $3, $4) RETURNING *",
-      [customer_name.trim(), phone.trim(), address, notes]
-    );
-    res.status(201).json({ message: "Customer created successfully", data: result.rows[0] });
+    if (!/^01\d{9}$/.test(phone.trim())) {
+      return res.status(400).json({ error_code: "INVALID_PHONE", error_ar: "رقم التليفون يجب أن يتكون من 11 رقم ويبدأ بـ 01", error: "Invalid phone number format" });
+    }
+
+    const info = db.prepare(
+      "INSERT INTO customers (customer_name, phone, address, notes) VALUES (?, ?, ?, ?)"
+    ).run(customer_name.trim(), phone.trim(), address, notes);
+    
+    const newCustomer = db.prepare("SELECT * FROM customers WHERE customer_id = ?").get(info.lastInsertRowid);
+    newCustomer.is_active = newCustomer.is_active === 1;
+    
+    res.status(201).json({ message: "Customer created successfully", data: newCustomer });
   } catch (err) {
     next(err);
   }
@@ -58,7 +71,7 @@ router.put("/", (req, res, next) => {
 });
 
 // PUT /api/customers/:id — Update customer
-router.put("/:id", async (req, res, next) => {
+router.put("/:id", (req, res, next) => {
   try {
     const { id } = req.params;
     const { customer_name, phone, address, notes } = req.body;
@@ -67,14 +80,22 @@ router.put("/:id", async (req, res, next) => {
       return res.status(400).json({ error_code: "REQUIRED_FIELDS", error: "customer_name and phone are required" });
     }
 
-    const result = await pool.query(
-      "UPDATE customers SET customer_name = $1, phone = $2, address = $3, notes = $4 WHERE customer_id = $5 RETURNING *",
-      [customer_name.trim(), phone.trim(), address, notes, id]
-    );
-    if (result.rows.length === 0) {
+    if (!/^01\d{9}$/.test(phone.trim())) {
+      return res.status(400).json({ error_code: "INVALID_PHONE", error_ar: "رقم التليفون يجب أن يتكون من 11 رقم ويبدأ بـ 01", error: "Invalid phone number format" });
+    }
+
+    const info = db.prepare(
+      "UPDATE customers SET customer_name = ?, phone = ?, address = ?, notes = ? WHERE customer_id = ?"
+    ).run(customer_name.trim(), phone.trim(), address, notes, id);
+    
+    if (info.changes === 0) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Customer not found" });
     }
-    res.json({ message: "Customer updated successfully", data: result.rows[0] });
+    
+    const updatedCustomer = db.prepare("SELECT * FROM customers WHERE customer_id = ?").get(id);
+    updatedCustomer.is_active = updatedCustomer.is_active === 1;
+    
+    res.json({ message: "Customer updated successfully", data: updatedCustomer });
   } catch (err) {
     next(err);
   }
@@ -86,17 +107,16 @@ router.delete("/", (req, res, next) => {
 });
 
 // DELETE /api/customers/:id — Deactivate customer (Soft Delete)
-router.delete("/:id", async (req, res, next) => {
+router.delete("/:id", (req, res, next) => {
   try {
     const { id } = req.params;
 
     // Business Rule: Cannot deactivate customer if they have active orders or unpaid installments
-    const checkActiveOrders = await pool.query(
-      "SELECT 1 FROM orders WHERE customer_id = $1 AND order_status = 'Active' LIMIT 1",
-      [id]
-    );
+    const checkActiveOrders = db.prepare(
+      "SELECT 1 FROM orders WHERE customer_id = ? AND order_status = 'Active' LIMIT 1"
+    ).get(id);
     
-    if (checkActiveOrders.rows.length > 0) {
+    if (checkActiveOrders) {
       return res.status(409).json({ 
         error_code: "CUSTOMER_HAS_OBLIGATIONS", 
         error: "لا يمكن تعطيل هذا العميل لوجود طلبات مفتوحة." 
@@ -104,45 +124,48 @@ router.delete("/:id", async (req, res, next) => {
     }
 
     // Check unpaid installments
-    const checkUnpaidInstallments = await pool.query(
+    const checkUnpaidInstallments = db.prepare(
       `SELECT 1 FROM installments i 
        JOIN orders o ON i.order_id = o.order_id 
-       WHERE o.customer_id = $1 AND i.status != 'Paid' LIMIT 1`,
-      [id]
-    );
+       WHERE o.customer_id = ? AND i.status != 'Paid' LIMIT 1`
+    ).get(id);
 
-    if (checkUnpaidInstallments.rows.length > 0) {
+    if (checkUnpaidInstallments) {
       return res.status(409).json({ 
         error_code: "CUSTOMER_HAS_OBLIGATIONS", 
         error: "لا يمكن تعطيل هذا العميل لوجود أقساط غير مسددة." 
       });
     }
 
-    const result = await pool.query(
-      "UPDATE customers SET is_active = FALSE WHERE customer_id = $1 AND is_active = TRUE RETURNING *",
-      [id]
-    );
-    if (result.rows.length === 0) {
+    const info = db.prepare("UPDATE customers SET is_active = 0 WHERE customer_id = ? AND is_active = 1").run(id);
+    
+    if (info.changes === 0) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Customer not found or already inactive" });
     }
-    res.json({ message: "Customer deactivated successfully", data: result.rows[0] });
+    
+    const customer = db.prepare("SELECT * FROM customers WHERE customer_id = ?").get(id);
+    customer.is_active = customer.is_active === 1;
+    
+    res.json({ message: "Customer deactivated successfully", data: customer });
   } catch (err) {
     next(err);
   }
 });
 
 // PUT /api/customers/:id/activate — Reactivate customer
-router.put("/:id/activate", async (req, res, next) => {
+router.put("/:id/activate", (req, res, next) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      "UPDATE customers SET is_active = TRUE WHERE customer_id = $1 AND is_active = FALSE RETURNING *",
-      [id]
-    );
-    if (result.rows.length === 0) {
+    const info = db.prepare("UPDATE customers SET is_active = 1 WHERE customer_id = ? AND is_active = 0").run(id);
+    
+    if (info.changes === 0) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Customer not found or already active" });
     }
-    res.json({ message: "Customer activated successfully", data: result.rows[0] });
+    
+    const customer = db.prepare("SELECT * FROM customers WHERE customer_id = ?").get(id);
+    customer.is_active = customer.is_active === 1;
+    
+    res.json({ message: "Customer activated successfully", data: customer });
   } catch (err) {
     next(err);
   }

@@ -1,45 +1,51 @@
 const router = require("express").Router();
-const pool = require("../config/db");
+const db = require("../config/db");
 
 // GET /api/categories — Get all categories with product count
-router.get("/", async (req, res, next) => {
+router.get("/", (req, res, next) => {
   try {
     const includeInactive = req.query.include_inactive === 'true';
-    const whereClause = includeInactive ? '' : 'WHERE c.is_active = TRUE';
+    const whereClause = includeInactive ? '' : 'WHERE c.is_active = 1';
 
-    const result = await pool.query(
-      `SELECT c.category_id, c.category_name, c.is_active, COUNT(p.product_id)::int AS product_count
+    const result = db.prepare(
+      `SELECT c.category_id, c.category_name, c.is_active, CAST(COUNT(p.product_id) AS INTEGER) AS product_count
        FROM categories c
        LEFT JOIN products p ON c.category_id = p.category_id
        ${whereClause}
        GROUP BY c.category_id, c.category_name, c.is_active
        ORDER BY c.category_id`
-    );
-    res.json(result.rows);
+    ).all();
+    
+    const formattedResult = result.map(r => ({
+      ...r,
+      is_active: r.is_active === 1
+    }));
+    
+    res.json(formattedResult);
   } catch (err) {
     next(err);
   }
 });
 
 // GET /api/categories/:id — Get single category
-router.get("/:id", async (req, res, next) => {
+router.get("/:id", (req, res, next) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      "SELECT * FROM categories WHERE category_id = $1",
-      [id]
-    );
-    if (result.rows.length === 0) {
+    const category = db.prepare("SELECT * FROM categories WHERE category_id = ?").get(id);
+    
+    if (!category) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Category not found" });
     }
-    res.json(result.rows[0]);
+    
+    category.is_active = category.is_active === 1;
+    res.json(category);
   } catch (err) {
     next(err);
   }
 });
 
 // POST /api/categories — Create new category
-router.post("/", async (req, res, next) => {
+router.post("/", (req, res, next) => {
   try {
     const { category_name } = req.body;
 
@@ -48,11 +54,11 @@ router.post("/", async (req, res, next) => {
       return res.status(400).json({ error_code: "REQUIRED_FIELDS", error: "category_name is required" });
     }
 
-    const result = await pool.query(
-      "INSERT INTO categories (category_name) VALUES ($1) RETURNING *",
-      [category_name.trim()]
-    );
-    res.status(201).json(result.rows[0]);
+    const info = db.prepare("INSERT INTO categories (category_name) VALUES (?)").run(category_name.trim());
+    const newCategory = db.prepare("SELECT * FROM categories WHERE category_id = ?").get(info.lastInsertRowid);
+    
+    newCategory.is_active = newCategory.is_active === 1;
+    res.status(201).json(newCategory);
   } catch (err) {
     next(err);
   }
@@ -64,7 +70,7 @@ router.put("/", (req, res, next) => {
 });
 
 // PUT /api/categories/:id — Update category
-router.put("/:id", async (req, res, next) => {
+router.put("/:id", (req, res, next) => {
   try {
     const { id } = req.params;
     const { category_name } = req.body;
@@ -74,14 +80,15 @@ router.put("/:id", async (req, res, next) => {
       return res.status(400).json({ error_code: "REQUIRED_FIELDS", error: "category_name is required" });
     }
 
-    const result = await pool.query(
-      "UPDATE categories SET category_name = $1 WHERE category_id = $2 RETURNING *",
-      [category_name.trim(), id]
-    );
-    if (result.rows.length === 0) {
+    const info = db.prepare("UPDATE categories SET category_name = ? WHERE category_id = ?").run(category_name.trim(), id);
+    
+    if (info.changes === 0) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Category not found" });
     }
-    res.json(result.rows[0]);
+    
+    const updatedCategory = db.prepare("SELECT * FROM categories WHERE category_id = ?").get(id);
+    updatedCategory.is_active = updatedCategory.is_active === 1;
+    res.json(updatedCategory);
   } catch (err) {
     next(err);
   }
@@ -93,17 +100,14 @@ router.delete("/", (req, res, next) => {
 });
 
 // DELETE /api/categories/:id — Deactivate category (Soft Delete)
-router.delete("/:id", async (req, res, next) => {
+router.delete("/:id", (req, res, next) => {
   try {
     const { id } = req.params;
 
     // Business Rule: Cannot deactivate category if it has ACTIVE products
-    const checkActiveProducts = await pool.query(
-      "SELECT 1 FROM products WHERE category_id = $1 AND is_active = TRUE LIMIT 1",
-      [id]
-    );
+    const checkActiveProducts = db.prepare("SELECT 1 FROM products WHERE category_id = ? AND is_active = 1 LIMIT 1").get(id);
     
-    if (checkActiveProducts.rows.length > 0) {
+    if (checkActiveProducts) {
       return res.status(409).json({ 
         error_code: "CATEGORY_IN_USE", 
         error: "Cannot deactivate a category that contains active products." 
@@ -111,31 +115,33 @@ router.delete("/:id", async (req, res, next) => {
     }
 
     // Perform Soft Delete
-    const result = await pool.query(
-      "UPDATE categories SET is_active = FALSE WHERE category_id = $1 AND is_active = TRUE RETURNING *",
-      [id]
-    );
-    if (result.rows.length === 0) {
+    const info = db.prepare("UPDATE categories SET is_active = 0 WHERE category_id = ? AND is_active = 1").run(id);
+    
+    if (info.changes === 0) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Category not found or already inactive" });
     }
-    res.json({ message: "Category deactivated successfully", data: result.rows[0] });
+    
+    const category = db.prepare("SELECT * FROM categories WHERE category_id = ?").get(id);
+    category.is_active = category.is_active === 1;
+    res.json({ message: "Category deactivated successfully", data: category });
   } catch (err) {
     next(err);
   }
 });
 
 // PUT /api/categories/:id/activate — Reactivate category
-router.put("/:id/activate", async (req, res, next) => {
+router.put("/:id/activate", (req, res, next) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      "UPDATE categories SET is_active = TRUE WHERE category_id = $1 AND is_active = FALSE RETURNING *",
-      [id]
-    );
-    if (result.rows.length === 0) {
+    const info = db.prepare("UPDATE categories SET is_active = 1 WHERE category_id = ? AND is_active = 0").run(id);
+    
+    if (info.changes === 0) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Category not found or already active" });
     }
-    res.json({ message: "Category activated successfully", data: result.rows[0] });
+    
+    const category = db.prepare("SELECT * FROM categories WHERE category_id = ?").get(id);
+    category.is_active = category.is_active === 1;
+    res.json({ message: "Category activated successfully", data: category });
   } catch (err) {
     next(err);
   }

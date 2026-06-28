@@ -225,7 +225,18 @@ async function confirmPayment() {
       payment_date: paymentDate
     });
 
-    showToast(res.message || 'تم تسجيل الدفع بنجاح', 'success');
+    // Check if order is now completed to show unified message
+    try {
+      const orderRes = await apiCall(`/orders/${selectedOrderId}`);
+      if (orderRes.order_status === 'Completed') {
+        showToast(`تم تسجيل الدفع وإغلاق الفاتورة ORD-${selectedOrderId} بالكامل ✅`, 'success');
+      } else {
+        showToast(res.message || 'تم تسجيل الدفع بنجاح', 'success');
+      }
+    } catch (err) {
+      // Fallback if order check fails
+      showToast(res.message || 'تم تسجيل الدفع بنجاح', 'success');
+    }
 
     // Update local state instantly
     const inst = allInstallments.find(i => i.installment_id === selectedInstallmentId);
@@ -238,28 +249,11 @@ async function confirmPayment() {
     renderInstallments();
     closePayModal();
 
-    // Check if order is now completed
-    checkOrderCompletion(selectedOrderId);
-
   } catch (err) {
     console.error('Payment failed:', err);
     // showToast handles error messages internally via apiCall
   } finally {
     btn.disabled = false;
     btn.textContent = 'تأكيد الدفع';
-  }
-}
-
-async function checkOrderCompletion(orderId) {
-  try {
-    const orderRes = await apiCall(`/orders/${orderId}`);
-    if (orderRes.order_status === 'Completed') {
-      // Delay slightly for better UX
-      setTimeout(() => {
-        showToast(`تم إغلاق الفاتورة ORD-${orderId} بالكامل ✅`, 'success');
-      }, 1000);
-    }
-  } catch (err) {
-    console.error('Failed to check order completion status:', err);
   }
 }

@@ -387,11 +387,6 @@ tr:hover td {
   margin-bottom: 8px;
 }
 
-.skeleton-button {
-  height: 40px;
-  width: 100px;
-  border-radius: 8px;
-}
 
 @keyframes skeleton-loading {
   0% { background-position: 200% 0; }
@@ -610,3 +605,71 @@ tr:hover td {
   padding: 6px 10px;
   font-size: 0.8rem;
 }
+
+/* 11. Print Styles for Receipt */
+@media print {
+  body {
+    background-color: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Hide EVERYTHING initially */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the active modal */
+  #receipt-modal.active, #receipt-modal.active * {
+    visibility: visible;
+  }
+
+  /* Remove overlay background and center it correctly for print */
+  #receipt-modal.active {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: auto;
+    background: transparent !important;
+    backdrop-filter: none;
+    align-items: flex-start; /* So it starts at top of page */
+  }
+
+  /* Reset modal content styles for a clean print */
+  .modal-content {
+    border: none !important;
+    box-shadow: none !important;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    transform: none !important;
+  }
+  
+  .receipt-card {
+    background: transparent !important;
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+  }
+
+  /* Force colors to print properly */
+  .text-success {
+    color: #000 !important; /* Printing in black and white */
+  }
+  .text-danger {
+    color: #000 !important;
+  }
+  .receipt-title, .fw-bold {
+    color: #000 !important;
+  }
+
+  /* Hide print/close buttons inside the modal */
+  .receipt-actions {
+    display: none !important;
+  }
+  
+  button[onclick="closeReceiptModal()"] {
+    display: none !important;
+  }
+}
+

@@ -1,27 +1,8 @@
 const request = require('supertest');
 const app = require('../app');
-const pool = require('../config/db');
-
-jest.mock('../config/db', () => {
-  const mClient = {
-    query: jest.fn(),
-    release: jest.fn()
-  };
-  return {
-    query: jest.fn(),
-    connect: jest.fn(() => mClient)
-  };
-});
+const db = require('../config/db');
 
 describe('Orders API', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  afterAll(() => {
-    jest.restoreAllMocks();
-  });
-
   describe('POST /api/orders', () => {
     const validOrder = {
       customer_id: 1,
@@ -45,10 +26,8 @@ describe('Orders API', () => {
     });
 
     it('should return 400 NOT_FOUND if customer_id does not exist', async () => {
-      const client = await pool.connect();
-      client.query.mockResolvedValueOnce({ rowCount: 0 }); // Mock customer validation
-
-      const res = await request(app).post('/api/orders').send(validOrder);
+      const payload = { ...validOrder, customer_id: 999 };
+      const res = await request(app).post('/api/orders').send(payload);
       expect(res.status).toBe(400);
       expect(res.body.error_code).toBe('NOT_FOUND');
     });
@@ -56,8 +35,7 @@ describe('Orders API', () => {
 
   describe('PUT /api/orders/:id', () => {
     it('should return 404 NOT_FOUND if order does not exist', async () => {
-      pool.query.mockResolvedValue({ rows: [] });
-      const res = await request(app).put('/api/orders/999').send({ total_amount: 100 });
+      const res = await request(app).put('/api/orders/999').send({ customer_id: 1 });
       expect(res.status).toBe(404);
       expect(res.body.error_code).toBe('NOT_FOUND');
     });

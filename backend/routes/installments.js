@@ -1,8 +1,8 @@
 const router = require("express").Router();
-const pool = require("../config/db");
+const db = require("../config/db");
 
 // GET /api/installments — Get all installments (with optional filters)
-router.get("/", async (req, res, next) => {
+router.get("/", (req, res, next) => {
   try {
     const { order_id, status } = req.query;
     
@@ -14,26 +14,23 @@ router.get("/", async (req, res, next) => {
       WHERE 1=1
     `;
     const values = [];
-    let paramIndex = 1;
 
     if (order_id) {
-      query += ` AND i.order_id = $${paramIndex}`;
+      query += ` AND i.order_id = ?`;
       values.push(order_id);
-      paramIndex++;
     }
 
     if (status) {
-      query += ` AND i.status = $${paramIndex}`;
+      query += ` AND i.status = ?`;
       values.push(status);
-      paramIndex++;
     }
 
     query += ` ORDER BY i.due_date ASC`;
 
-    const result = await pool.query(query, values);
+    const result = db.prepare(query).all(...values);
     
     // Add invoice_number to response
-    const rows = result.rows.map(row => ({
+    const rows = result.map(row => ({
       ...row,
       invoice_number: 'ORD-' + row.order_id
     }));
@@ -44,7 +41,7 @@ router.get("/", async (req, res, next) => {
 });
 
 // GET /api/installments/order/:order_id — Get all installments for a specific order
-router.get("/order/:order_id", async (req, res, next) => {
+router.get("/order/:order_id", (req, res, next) => {
   try {
     const { order_id } = req.params;
     const query = `
@@ -52,41 +49,23 @@ router.get("/order/:order_id", async (req, res, next) => {
       FROM installments i
       LEFT JOIN orders o ON i.order_id = o.order_id
       LEFT JOIN customers c ON o.customer_id = c.customer_id
-      WHERE i.order_id = $1
+      WHERE i.order_id = ?
       ORDER BY i.due_date ASC
     `;
-    const result = await pool.query(query, [order_id]);
-    res.json(result.rows);
+    const result = db.prepare(query).all(order_id);
+    res.json(result);
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/installments — Generate installments for an order
-router.post("/", async (req, res, next) => {
-  try {
-    const { p_order_id, p_months, p_first_due_date } = req.body;
-
-    // Validations
-    if (!p_order_id) {
-      return res.status(400).json({ error_code: "REQUIRED_FIELDS", error: "p_order_id is required" });
-    }
-    if (p_months === undefined || p_months <= 0) {
-      return res.status(400).json({ error_code: "ZERO_OR_NEGATIVE_AMOUNT", error: "p_months must be greater than zero" });
-    }
-    if (!p_first_due_date) {
-      return res.status(400).json({ error_code: "REQUIRED_FIELDS", error: "p_first_due_date is required" });
-    }
-
-    const result = await pool.query(
-      `SELECT * FROM generate_installments($1, $2, $3)`,
-      [p_order_id, p_months, p_first_due_date]
-    );
-
-    res.status(201).json({ message: "Installments generated successfully" });
-  } catch (err) {
-    next(err);
-  }
+// POST /api/installments — Deprecated: Installments are now generated automatically upon order creation
+router.post("/", (req, res) => {
+  res.status(410).json({
+    error_code: "GONE",
+    error_ar: "لم يعد هذا الرابط مستخدماً، يتم إنشاء الأقساط تلقائياً مع الطلب",
+    error: "This endpoint is deprecated. Installments are generated automatically upon order creation."
+  });
 });
 
 // PUT /api/installments/ — Handle missing ID
@@ -99,36 +78,56 @@ router.delete("/", (req, res, next) => {
   res.status(400).json({ error_code: "ID_REQUIRED", error: "Installment ID is required" });
 });
 
-
 // PATCH /api/installments/:id/pay — Mark single installment as Paid
-router.patch("/:id/pay", async (req, res, next) => {
+router.patch("/:id/pay", (req, res, next) => {
   try {
     const { id } = req.params;
     const payment_date = req.body.payment_date || new Date().toISOString().split('T')[0];
 
-    const checkResult = await pool.query("SELECT * FROM installments WHERE installment_id = $1", [id]);
-    if (checkResult.rows.length === 0) {
-      return res.status(404).json({ error_code: "NOT_FOUND", error_ar: "القسط غير موجود", error: "Installment not found" });
-    }
-    
-    const existing = checkResult.rows[0];
-    if (!['Pending', 'Late'].includes(existing.status)) {
-      return res.status(400).json({ 
-        error_code: "ALREADY_PAID", 
-        error_ar: "القسط مدفوع بالفعل أو في حالة غير قابلة للتعديل",
-        error: "Installment cannot be paid in its current status"
-      });
-    }
+    const payInstallmentTx = db.transaction((installmentId, pDate) => {
+      const existing = db.prepare("SELECT * FROM installments WHERE installment_id = ?").get(installmentId);
+      
+      if (!existing) {
+        throw new Error("NOT_FOUND");
+      }
+      if (!['Pending', 'Late'].includes(existing.status)) {
+        throw new Error("ALREADY_PAID");
+      }
 
-    const result = await pool.query(
-      `UPDATE installments 
-       SET status = 'Paid', payment_date = $1 
-       WHERE installment_id = $2 
-       RETURNING *`,
-      [payment_date, id]
-    );
+      db.prepare(`
+        UPDATE installments 
+        SET status = 'Paid', payment_date = ? 
+        WHERE installment_id = ?
+      `).run(pDate, installmentId);
+      
+      const updatedInstallment = db.prepare("SELECT * FROM installments WHERE installment_id = ?").get(installmentId);
+      
+      // Check if order is completed (replacing trg_check_order_completed)
+      const pendingCount = db.prepare("SELECT COUNT(*) as count FROM installments WHERE order_id = ? AND status != 'Paid'").get(updatedInstallment.order_id);
+      
+      if (pendingCount.count === 0) {
+          db.prepare("UPDATE orders SET order_status = 'Completed' WHERE order_id = ?").run(updatedInstallment.order_id);
+      }
+      
+      return updatedInstallment;
+    });
 
-    res.json({ message: "تم تسجيل الدفع بنجاح", data: result.rows[0] });
+    try {
+      const result = payInstallmentTx(id, payment_date);
+      res.json({ message: "تم تسجيل الدفع بنجاح", data: result });
+    } catch (txErr) {
+      if (txErr.message === "NOT_FOUND") {
+         return res.status(404).json({ error_code: "NOT_FOUND", error_ar: "القسط غير موجود", error: "Installment not found" });
+      }
+      if (txErr.message === "ALREADY_PAID") {
+         return res.status(400).json({ 
+          error_code: "ALREADY_PAID", 
+          error_ar: "القسط مدفوع بالفعل أو في حالة غير قابلة للتعديل",
+          error: "Installment cannot be paid in its current status"
+        });
+      }
+      throw txErr;
+    }
   } catch (err) {
     next(err);
   }
@@ -136,7 +135,7 @@ router.patch("/:id/pay", async (req, res, next) => {
 
 
 // GET /api/installments/:id — Get single installment
-router.get("/:id", async (req, res, next) => {
+router.get("/:id", (req, res, next) => {
   try {
     const { id } = req.params;
     const query = `
@@ -144,30 +143,29 @@ router.get("/:id", async (req, res, next) => {
       FROM installments i
       LEFT JOIN orders o ON i.order_id = o.order_id
       LEFT JOIN customers c ON o.customer_id = c.customer_id
-      WHERE i.installment_id = $1
+      WHERE i.installment_id = ?
     `;
-    const result = await pool.query(query, [id]);
+    const result = db.prepare(query).get(id);
 
-    if (result.rows.length === 0) {
+    if (!result) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Installment not found" });
     }
-    res.json(result.rows[0]);
+    res.json(result);
   } catch (err) {
     next(err);
   }
 });
 
 // PUT /api/installments/:id — Update installment (Partial Update)
-router.put("/:id", async (req, res, next) => {
+router.put("/:id", (req, res, next) => {
   try {
     const { id } = req.params;
 
     // 1. Fetch existing installment
-    const checkResult = await pool.query("SELECT * FROM installments WHERE installment_id = $1", [id]);
-    if (checkResult.rows.length === 0) {
+    const existing = db.prepare("SELECT * FROM installments WHERE installment_id = ?").get(id);
+    if (!existing) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Installment not found" });
     }
-    const existing = checkResult.rows[0];
 
     // 2. Merge existing data with new data
     const { body } = req;
@@ -192,14 +190,28 @@ router.put("/:id", async (req, res, next) => {
     }
 
     // 4. Update Database
-    const result = await pool.query(
-      `UPDATE installments 
-       SET amount = $1, due_date = $2, payment_date = $3, status = $4
-       WHERE installment_id = $5 RETURNING *`,
-      [amount, due_date, final_payment_date, status, id]
-    );
+    const updateTx = db.transaction((updateData) => {
+       db.prepare(`
+         UPDATE installments 
+         SET amount = ?, due_date = ?, payment_date = ?, status = ?
+         WHERE installment_id = ?
+       `).run(updateData.amount, updateData.due_date, updateData.final_payment_date, updateData.status, id);
+       
+       // Trigger logic again just in case someone marks it paid manually through PUT instead of PATCH
+       const pendingCount = db.prepare("SELECT COUNT(*) as count FROM installments WHERE order_id = ? AND status != 'Paid'").get(existing.order_id);
+      
+       if (pendingCount.count === 0) {
+           db.prepare("UPDATE orders SET order_status = 'Completed' WHERE order_id = ?").run(existing.order_id);
+       } else if (existing.status === 'Paid' && status !== 'Paid') {
+           db.prepare("UPDATE orders SET order_status = 'Active' WHERE order_id = ?").run(existing.order_id);
+       }
+    });
+    
+    updateTx({ amount, due_date, final_payment_date, status });
 
-    res.json({ message: "Installment updated successfully", data: result.rows[0] });
+    const updatedInstallment = db.prepare("SELECT * FROM installments WHERE installment_id = ?").get(id);
+
+    res.json({ message: "Installment updated successfully", data: updatedInstallment });
   } catch (err) {
     next(err);
   }

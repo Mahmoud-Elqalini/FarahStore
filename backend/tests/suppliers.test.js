@@ -1,32 +1,19 @@
 const request = require('supertest');
 const app = require('../app');
-const pool = require('../config/db');
-
-jest.mock('../config/db', () => ({
-  query: jest.fn()
-}));
+const db = require('../config/db');
 
 describe('Suppliers API', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  afterAll(() => {
-    jest.restoreAllMocks();
-  });
-
   describe('POST /api/suppliers', () => {
     it('should return 400 REQUIRED_FIELDS if supplier_name is missing', async () => {
-      const res = await request(app).post('/api/suppliers').send({ phone: '1234567890' });
+      const res = await request(app).post('/api/suppliers').send({ phone: '01123456789' });
       expect(res.status).toBe(400);
       expect(res.body.error_code).toBe('REQUIRED_FIELDS');
     });
 
     it('should create supplier successfully', async () => {
-      pool.query.mockResolvedValue({ rows: [{ supplier_id: 1, supplier_name: 'Supplier A' }] });
       const res = await request(app).post('/api/suppliers').send({ supplier_name: 'Supplier A' });
       expect(res.status).toBe(201);
-      expect(res.body.data.supplier_id).toBe(1);
+      expect(res.body.data.supplier_id).toBeDefined();
     });
   });
 
@@ -40,7 +27,6 @@ describe('Suppliers API', () => {
 
   describe('PUT /api/suppliers/:id', () => {
     it('should return 404 NOT_FOUND if supplier does not exist', async () => {
-      pool.query.mockResolvedValue({ rows: [] });
       const res = await request(app).put('/api/suppliers/999').send({ supplier_name: 'Updated' });
       expect(res.status).toBe(404);
       expect(res.body.error_code).toBe('NOT_FOUND');
@@ -57,20 +43,15 @@ describe('Suppliers API', () => {
 
   describe('DELETE /api/suppliers/:id', () => {
     it('should return 404 NOT_FOUND if supplier does not exist', async () => {
-      pool.query.mockResolvedValue({ rows: [] });
       const res = await request(app).delete('/api/suppliers/999');
       expect(res.status).toBe(404);
       expect(res.body.error_code).toBe('NOT_FOUND');
     });
 
-    it('should return 400 LINKED_RECORDS_EXIST if supplier is linked to products', async () => {
-      const dbError = new Error();
-      dbError.code = '23503';
-      pool.query.mockRejectedValue(dbError);
-
+    it('should return 409 SUPPLIER_IN_USE if supplier has active products', async () => {
       const res = await request(app).delete('/api/suppliers/1');
-      expect(res.status).toBe(400);
-      expect(res.body.error_code).toBe('LINKED_RECORDS_EXIST');
+      expect(res.status).toBe(409);
+      expect(res.body.error_code).toBe('SUPPLIER_IN_USE');
     });
   });
 });

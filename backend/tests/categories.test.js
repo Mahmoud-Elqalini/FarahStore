@@ -1,23 +1,10 @@
 const request = require('supertest');
 const app = require('../app');
-const pool = require('../config/db');
-
-jest.mock('../config/db', () => ({
-  query: jest.fn()
-}));
+const db = require('../config/db');
 
 describe('Categories API', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  afterAll(() => {
-    jest.restoreAllMocks();
-  });
-
   describe('GET /api/categories', () => {
     it('should return all categories', async () => {
-      pool.query.mockResolvedValue({ rows: [{ category_id: 1, category_name: 'Electronics', product_count: 5 }] });
       const res = await request(app).get('/api/categories');
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(1);
@@ -26,14 +13,12 @@ describe('Categories API', () => {
 
   describe('GET /api/categories/:id', () => {
     it('should return 404 NOT_FOUND if category does not exist', async () => {
-      pool.query.mockResolvedValue({ rows: [] });
       const res = await request(app).get('/api/categories/999');
       expect(res.status).toBe(404);
       expect(res.body.error_code).toBe('NOT_FOUND');
     });
 
     it('should return category data if exists', async () => {
-      pool.query.mockResolvedValue({ rows: [{ category_id: 1, category_name: 'Electronics' }] });
       const res = await request(app).get('/api/categories/1');
       expect(res.status).toBe(200);
       expect(res.body.category_name).toBe('Electronics');
@@ -48,7 +33,6 @@ describe('Categories API', () => {
     });
 
     it('should create a new category successfully', async () => {
-      pool.query.mockResolvedValue({ rows: [{ category_id: 1, category_name: 'New Category' }] });
       const res = await request(app).post('/api/categories').send({ category_name: 'New Category' });
       expect(res.status).toBe(201);
       expect(res.body.category_name).toBe('New Category');
@@ -71,7 +55,6 @@ describe('Categories API', () => {
     });
 
     it('should return 404 NOT_FOUND if category to update does not exist', async () => {
-      pool.query.mockResolvedValue({ rows: [] }); // Update returns empty
       const res = await request(app).put('/api/categories/999').send({ category_name: 'Updated' });
       expect(res.status).toBe(404);
       expect(res.body.error_code).toBe('NOT_FOUND');
@@ -88,24 +71,20 @@ describe('Categories API', () => {
 
   describe('DELETE /api/categories/:id', () => {
     it('should return 404 NOT_FOUND if category does not exist', async () => {
-      pool.query.mockResolvedValue({ rows: [] });
       const res = await request(app).delete('/api/categories/999');
       expect(res.status).toBe(404);
       expect(res.body.error_code).toBe('NOT_FOUND');
     });
 
     it('should return 409 LINKED_RECORDS_EXIST if category is linked to products', async () => {
-      pool.query.mockResolvedValueOnce({ rows: [{ product_id: 1 }] }); // SELECT returns linked product
-
       const res = await request(app).delete('/api/categories/1');
       expect(res.status).toBe(409);
       expect(res.body.error_code).toBe('CATEGORY_IN_USE');
     });
 
     it('should delete category successfully', async () => {
-      pool.query
-        .mockResolvedValueOnce({ rows: [] }) // SELECT (no products)
-        .mockResolvedValueOnce({ rows: [{ category_id: 1 }] }); // DELETE
+      // Setup: deactivate the product linked to this category first so it can be deleted
+      db.prepare("UPDATE products SET is_active = 0 WHERE product_id = 1").run();
 
       const res = await request(app).delete('/api/categories/1');
       expect(res.status).toBe(200);

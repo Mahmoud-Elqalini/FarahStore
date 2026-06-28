@@ -1,8 +1,8 @@
 const router = require("express").Router();
-const pool = require("../config/db");
+const db = require("../config/db");
 
 // GET /api/orders — Get all orders
-router.get("/", async (req, res, next) => {
+router.get("/", (req, res, next) => {
   try {
     const query = `
       SELECT o.*, c.customer_name 
@@ -10,15 +10,15 @@ router.get("/", async (req, res, next) => {
       LEFT JOIN customers c ON o.customer_id = c.customer_id
       ORDER BY o.order_id DESC
     `;
-    const result = await pool.query(query);
-    res.json(result.rows);
+    const result = db.prepare(query).all();
+    res.json(result);
   } catch (err) {
     next(err);
   }
 });
 
 // GET /api/orders/:id — Get single order with details
-router.get("/:id", async (req, res, next) => {
+router.get("/:id", (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -27,11 +27,11 @@ router.get("/:id", async (req, res, next) => {
       SELECT o.*, c.customer_name 
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.customer_id
-      WHERE o.order_id = $1
+      WHERE o.order_id = ?
     `;
-    const orderResult = await pool.query(orderQuery, [id]);
+    const orderData = db.prepare(orderQuery).get(id);
 
-    if (orderResult.rows.length === 0) {
+    if (!orderData) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Order not found" });
     }
 
@@ -40,12 +40,11 @@ router.get("/:id", async (req, res, next) => {
       SELECT od.*, p.product_name 
       FROM order_details od
       LEFT JOIN products p ON od.product_id = p.product_id
-      WHERE od.order_id = $1
+      WHERE od.order_id = ?
     `;
-    const detailsResult = await pool.query(detailsQuery, [id]);
-
-    const orderData = orderResult.rows[0];
-    orderData.items = detailsResult.rows;
+    const detailsResult = db.prepare(detailsQuery).all(id);
+    
+    orderData.items = detailsResult;
 
     // Calculate remaining_balance
     if (orderData.payment_type === 'Cash') {
@@ -54,10 +53,10 @@ router.get("/:id", async (req, res, next) => {
       const remainingQuery = `
         SELECT COALESCE(SUM(amount), 0) as remaining_balance
         FROM installments
-        WHERE order_id = $1 AND status IN ('Pending', 'Late')
+        WHERE order_id = ? AND status IN ('Pending', 'Late')
       `;
-      const remainingResult = await pool.query(remainingQuery, [id]);
-      orderData.remaining_balance = Number(remainingResult.rows[0].remaining_balance);
+      const remainingResult = db.prepare(remainingQuery).get(id);
+      orderData.remaining_balance = Number(remainingResult.remaining_balance);
     }
 
     res.json(orderData);
@@ -67,8 +66,7 @@ router.get("/:id", async (req, res, next) => {
 });
 
 // POST /api/orders — Create new order
-router.post("/", async (req, res, next) => {
-  const client = await pool.connect();
+router.post("/", (req, res, next) => {
   try {
     const { customer_id, payment_type, items, months, first_due_date } = req.body;
 
@@ -99,98 +97,145 @@ router.post("/", async (req, res, next) => {
       }
     }
 
-    // 2. Validate Customer
-    const custRes = await client.query('SELECT is_active FROM customers WHERE customer_id = $1', [customer_id]);
-    if (custRes.rowCount === 0 || !custRes.rows[0].is_active) {
-      return res.status(400).json({ error_code: "NOT_FOUND", error_ar: "العميل غير موجود أو محذوف", error: "Customer not found or inactive" });
-    }
-
-    // 3. Fetch Prices & Validate Products
-    let total_amount = 0;
-    const finalItems = [];
-
-    for (const item of items) {
-      const prodRes = await client.query('SELECT product_name, selling_price, is_active FROM products WHERE product_id = $1', [item.product_id]);
-      if (prodRes.rowCount === 0 || !prodRes.rows[0].is_active) {
-        return res.status(400).json({ error_code: "NOT_FOUND", error_ar: "المنتج غير موجود أو محذوف", error: `Product ${item.product_id} not found or inactive` });
-      }
-      const price = Number(prodRes.rows[0].selling_price);
-      total_amount += price * item.quantity;
-      finalItems.push({
-        product_id: item.product_id,
-        quantity: item.quantity,
-        unit_price: price // Needed by create_order DB function
-      });
-    }
-
-    const itemsJsonb = JSON.stringify(finalItems);
-
-    // 4. Transaction
-    await client.query('BEGIN');
-
-    const orderRes = await client.query(
-      `SELECT create_order($1, $2, $3, $4::jsonb) AS order_id`,
-      [customer_id, payment_type, total_amount, itemsJsonb]
-    );
-    const order_id = orderRes.rows[0].order_id;
-
-    if (payment_type === "Installment") {
-      await client.query(
-        `SELECT generate_installments($1, $2, $3)`,
-        [order_id, months, first_due_date]
-      );
-    }
-
-    await client.query('COMMIT');
-
-    // 5. Success Response
-    const paid_amount = payment_type === 'Cash' ? total_amount : 0;
-    const remaining_balance = payment_type === 'Installment' ? total_amount : 0;
-
-    res.status(201).json({
-      success: true,
-      order_id,
-      invoice_number: `ORD-${order_id}`,
-      created_at: new Date().toISOString(),
-      total_amount,
-      payment_type,
-      paid_amount,
-      remaining_balance,
-      message: "تم إنشاء الفاتورة بنجاح"
-    });
-
-  } catch (err) {
-    await client.query('ROLLBACK');
-    // Check if error is from Postgres RAISE EXCEPTION for stock
-    if (err.message && err.message.includes('Insufficient stock for product')) {
-      const match = err.message.match(/product\s+(\d+)/i);
-      const productId = match ? match[1] : null;
-      if (!productId) {
-        return res.status(400).json({ error_code: "INSUFFICIENT_STOCK", error_ar: "المخزون لا يكفي لبعض المنتجات", error: err.message });
-      }
-      try {
-        const pRes = await pool.query('SELECT product_name, stock_quantity FROM products WHERE product_id = $1', [productId]);
-        if (pRes.rowCount > 0) {
-          const prodName = pRes.rows[0].product_name;
-          return res.status(400).json({
-            error_code: "INSUFFICIENT_STOCK",
-            error_ar: `المنتج '${prodName}' متاح بكمية ${pRes.rows[0].stock_quantity} فقط`,
-            error: err.message
-          });
-        }
-      } catch (e) {
-        // Ignore fallback query error
+    // Define JS Transaction for create_order and generate_installments
+    const createOrderTx = db.transaction((orderData) => {
+      const { customerId, payType, reqItems, numMonths, firstDueDate } = orderData;
+      
+      // 2. Validate Customer
+      const custRes = db.prepare('SELECT is_active FROM customers WHERE customer_id = ?').get(customerId);
+      if (!custRes || custRes.is_active === 0) {
+        throw new Error('CUSTOMER_NOT_FOUND');
       }
       
-      return res.status(400).json({
-        error_code: "INSUFFICIENT_STOCK",
-        error_ar: `المخزون لا يكفي للمنتج رقم ${productId}`,
-        error: err.message
+      // 3. Fetch Prices & Validate Products & Check Stock
+      let totalAmount = 0;
+      const finalItems = [];
+      
+      for (const item of reqItems) {
+        const prod = db.prepare('SELECT product_name, selling_price, stock_quantity, is_active FROM products WHERE product_id = ?').get(item.product_id);
+        if (!prod || prod.is_active === 0) {
+          throw new Error(`PRODUCT_NOT_FOUND:${item.product_id}`);
+        }
+        if (prod.stock_quantity < item.quantity) {
+          throw new Error(`INSUFFICIENT_STOCK:${item.product_id}:${prod.product_name}:${prod.stock_quantity}`);
+        }
+        
+        const price = Number(prod.selling_price);
+        totalAmount += price * item.quantity;
+        
+        finalItems.push({
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: price
+        });
+      }
+      
+      // 4. Create Order
+      const initialStatus = payType === 'Cash' ? 'Completed' : 'Active';
+      const orderInfo = db.prepare(`
+        INSERT INTO orders (customer_id, payment_type, total_amount, order_status)
+        VALUES (?, ?, ?, ?)
+      `).run(customerId, payType, totalAmount, initialStatus);
+      
+      const newOrderId = orderInfo.lastInsertRowid;
+      
+      // 5. Create Order Details and Update Stock
+      const insertDetail = db.prepare(`INSERT INTO order_details (order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?)`);
+      const updateStock = db.prepare(`UPDATE products SET stock_quantity = stock_quantity - ? WHERE product_id = ?`);
+      
+      for (const item of finalItems) {
+        insertDetail.run(newOrderId, item.product_id, item.quantity, item.unit_price);
+        updateStock.run(item.quantity, item.product_id);
+      }
+      
+      // 6. Generate Installments if needed
+      if (payType === 'Installment') {
+        const insertInstallment = db.prepare(`INSERT INTO installments (order_id, installment_number, amount, due_date, status) VALUES (?, ?, ?, ?, 'Pending')`);
+        
+        const baseAmount = Math.round(totalAmount / numMonths);
+        let totalAssigned = 0;
+        
+        const firstDate = new Date(firstDueDate);
+        
+        for (let i = 1; i <= numMonths; i++) {
+          let currentAmount = baseAmount;
+          
+          if (i === numMonths) {
+            currentAmount = totalAmount - totalAssigned;
+          }
+          
+          // Calculate date for this specific installment (offset by i-1 months)
+          const currentDate = new Date(firstDate);
+          const targetMonth = currentDate.getMonth() + (i - 1);
+          const expectedMonth = targetMonth % 12;
+          
+          currentDate.setMonth(targetMonth);
+          
+          // If the engine overflowed the month (e.g., Jan 31 -> Mar 3), roll back to last day of expected month
+          if (currentDate.getMonth() !== expectedMonth) {
+            currentDate.setDate(0);
+          }
+          
+          // Format the date for the current installment
+          const formattedDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
+          
+          insertInstallment.run(newOrderId, i, currentAmount, formattedDate);
+          totalAssigned += currentAmount;
+        }
+      }
+      
+      return { newOrderId, totalAmount };
+    });
+
+    try {
+      const { newOrderId, totalAmount } = createOrderTx({
+        customerId: customer_id,
+        payType: payment_type,
+        reqItems: items,
+        numMonths: months,
+        firstDueDate: first_due_date
       });
+      
+      // Success Response
+      const paid_amount = payment_type === 'Cash' ? totalAmount : 0;
+      const remaining_balance = payment_type === 'Installment' ? totalAmount : 0;
+
+      res.status(201).json({
+        success: true,
+        order_id: newOrderId,
+        invoice_number: `ORD-${newOrderId}`,
+        created_at: new Date().toISOString(),
+        total_amount: totalAmount,
+        payment_type,
+        paid_amount,
+        remaining_balance,
+        message: "تم إنشاء الفاتورة بنجاح"
+      });
+      
+    } catch (txErr) {
+      if (txErr.message === 'CUSTOMER_NOT_FOUND') {
+        return res.status(400).json({ error_code: "NOT_FOUND", error_ar: "العميل غير موجود أو محذوف", error: "Customer not found or inactive" });
+      }
+      if (txErr.message.startsWith('PRODUCT_NOT_FOUND:')) {
+        const pId = txErr.message.split(':')[1];
+        return res.status(400).json({ error_code: "NOT_FOUND", error_ar: "المنتج غير موجود أو محذوف", error: `Product ${pId} not found or inactive` });
+      }
+      if (txErr.message.startsWith('INSUFFICIENT_STOCK:')) {
+        const parts = txErr.message.split(':');
+        const pId = parts[1];
+        const pName = parts[2];
+        const pStock = parts[3];
+        return res.status(400).json({
+          error_code: "INSUFFICIENT_STOCK",
+          error_ar: `المنتج '${pName}' متاح بكمية ${pStock} فقط`,
+          error: `Insufficient stock for product ${pId}`
+        });
+      }
+      throw txErr;
     }
+
+  } catch (err) {
     next(err);
-  } finally {
-    client.release();
   }
 });
 
@@ -200,16 +245,15 @@ router.put("/", (req, res, next) => {
 });
 
 // PUT /api/orders/:id — Update order (Partial Update)
-router.put("/:id", async (req, res, next) => {
+router.put("/:id", (req, res, next) => {
   try {
     const { id } = req.params;
 
     // 1. Fetch existing order
-    const checkResult = await pool.query("SELECT * FROM orders WHERE order_id = $1", [id]);
-    if (checkResult.rows.length === 0) {
+    const existing = db.prepare("SELECT * FROM orders WHERE order_id = ?").get(id);
+    if (!existing) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Order not found" });
     }
-    const existing = checkResult.rows[0];
 
     // 2. Merge existing data with new data
     const { body } = req;
@@ -232,12 +276,10 @@ router.put("/:id", async (req, res, next) => {
     }
 
     // 4. Update Database
-    const result = await pool.query(
-      `UPDATE orders SET customer_id = $1 WHERE order_id = $2 RETURNING *`,
-      [customer_id, id]
-    );
+    db.prepare(`UPDATE orders SET customer_id = ? WHERE order_id = ?`).run(customer_id, id);
+    const updatedOrder = db.prepare("SELECT * FROM orders WHERE order_id = ?").get(id);
 
-    res.json({ message: "Order updated successfully", data: result.rows[0] });
+    res.json({ message: "Order updated successfully", data: updatedOrder });
   } catch (err) {
     next(err);
   }
@@ -249,23 +291,22 @@ router.delete("/", (req, res, next) => {
 });
 
 // DELETE /api/orders/:id — Delete order
-router.delete("/:id", async (req, res, next) => {
+router.delete("/:id", (req, res, next) => {
   try {
     const { id } = req.params;
     
-    const checkResult = await pool.query("SELECT order_status FROM orders WHERE order_id = $1", [id]);
-    if (checkResult.rows.length === 0) {
+    const checkResult = db.prepare("SELECT order_status FROM orders WHERE order_id = ?").get(id);
+    if (!checkResult) {
       return res.status(404).json({ error_code: "NOT_FOUND", error: "Order not found" });
     }
-    if (checkResult.rows[0].order_status === 'Cancelled') {
+    if (checkResult.order_status === 'Cancelled') {
       return res.status(400).json({ error_code: "ALREADY_CANCELLED", error_ar: "الطلب ملغي بالفعل", error: "Order is already cancelled" });
     }
 
-    const result = await pool.query(
-      "UPDATE orders SET order_status = 'Cancelled' WHERE order_id = $1 RETURNING *",
-      [id]
-    );
-    res.json({ message: "تم إلغاء الطلب بنجاح", data: result.rows[0] });
+    db.prepare("UPDATE orders SET order_status = 'Cancelled' WHERE order_id = ?").run(id);
+    const cancelledOrder = db.prepare("SELECT * FROM orders WHERE order_id = ?").get(id);
+    
+    res.json({ message: "تم إلغاء الطلب بنجاح", data: cancelledOrder });
   } catch (err) {
     next(err);
   }

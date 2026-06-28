@@ -79,14 +79,28 @@
     .status-unknown { background: rgba(149, 165, 166, 0.2); color: #95a5a6; }
 
     /* Modal specific */
-    .modal-items-table th, .modal-items-table td {
-      text-align: right;
-      padding: 10px;
-      border-bottom: 1px solid var(--border-color);
+    .modal-items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      margin-bottom: 25px;
     }
     .modal-items-table th {
+      text-align: right;
+      padding: 12px;
       color: var(--text-muted);
       font-weight: 600;
+      border-bottom: 2px solid var(--border-color);
+      background-color: rgba(0,0,0,0.2);
+    }
+    .modal-items-table td {
+      text-align: right;
+      padding: 12px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+    .modal-items-table tr:hover td {
+      background-color: var(--bg-card-hover);
     }
 
     /* Skeleton Loading */
@@ -217,49 +231,58 @@
 
   <!-- Order Details Modal -->
   <div class="modal-overlay" id="details-modal">
-    <div class="modal" style="max-width: 600px;">
+    <div class="modal-content" style="max-width: 650px; border-top: 5px solid var(--primary);">
       <div class="modal-header">
-        <h3 id="modal-title">تفاصيل الفاتورة</h3>
-        <button class="btn-close" onclick="closeDetailsModal()">&times;</button>
+        <h3 id="modal-title" style="margin: 0; color: var(--primary);">تفاصيل الفاتورة</h3>
+        <button onclick="closeDetailsModal()" style="background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;" title="إغلاق">&times;</button>
       </div>
-      <div class="modal-body" style="padding: 20px;">
+      <div class="modal-body">
         
-        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; background: var(--bg-dark); padding: 15px; border-radius: 8px;">
+        <!-- Customer Info Card -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: rgba(139, 92, 246, 0.05); padding: 20px; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2);">
           <div>
-            <div style="color: var(--text-muted); font-size: 0.9rem;">العميل</div>
-            <div id="modal-customer" style="font-weight: bold; font-size: 1.1rem; margin-top: 5px;"></div>
+            <div style="color: var(--primary); font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">العميل</div>
+            <div id="modal-customer" style="font-weight: bold; font-size: 1.2rem; color: var(--text-main);"></div>
+            <div id="modal-datetime" style="color: var(--text-muted); font-size: 0.85rem; margin-top: 5px;"></div>
           </div>
-          <div style="text-align: left;">
-            <span id="modal-payment-type" style="margin-left: 10px; font-weight: bold;"></span>
-            <span id="modal-status"></span>
+          <div style="text-align: left; display: flex; flex-direction: column; gap: 8px;">
+            <span id="modal-payment-type" class="status-badge" style="background: var(--bg-dark); color: var(--text-main); border: 1px solid var(--border-color);"></span>
+            <span id="modal-status" class="status-badge"></span>
           </div>
         </div>
 
-        <table class="modal-items-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-          <thead>
-            <tr>
-              <th>المنتج</th>
-              <th>الكمية</th>
-              <th>سعر الوحدة</th>
-              <th>الإجمالي</th>
-            </tr>
-          </thead>
-          <tbody id="modal-items-tbody">
-            <!-- Items injected here -->
-          </tbody>
-        </table>
+        <h4 style="color: var(--text-muted); font-size: 1rem; margin-bottom: 10px;">المنتجات المشتراة</h4>
+        <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+          <table class="modal-items-table" style="margin: 0;">
+            <thead>
+              <tr>
+                <th>المنتج</th>
+                <th>الكمية</th>
+                <th>سعر الوحدة</th>
+                <th>الإجمالي</th>
+              </tr>
+            </thead>
+            <tbody id="modal-items-tbody">
+              <!-- Items injected here -->
+            </tbody>
+          </table>
+        </div>
 
-        <div style="border-top: 2px solid var(--border-color); padding-top: 15px; display: flex; flex-direction: column; gap: 10px;">
-          <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold;">
+        <!-- Totals Section -->
+        <div style="margin-top: 20px; padding: 20px; background: var(--bg-dark); border-radius: 12px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border-color);">
+          <div style="display: flex; justify-content: space-between; font-size: 1.3rem; font-weight: 700; color: var(--text-main);">
             <span>الإجمالي:</span>
-            <span><span id="modal-total">0.00</span> ج.م</span>
+            <span style="color: var(--primary);"><span id="modal-total">0.00</span> ج.م</span>
           </div>
-          <div id="modal-remaining-container" style="display: none; justify-content: space-between; font-size: 1.1rem; color: var(--text-muted);">
-            <span>المتبقي (تقسيط):</span>
-            <span><span id="modal-remaining">0.00</span> ج.م</span>
+          <div id="modal-remaining-container" style="display: none; justify-content: space-between; font-size: 1.1rem; font-weight: 600; padding-top: 12px; border-top: 1px dashed var(--border-color);">
+            <span style="color: var(--text-muted);">المتبقي (تقسيط):</span>
+            <span style="color: var(--status-cancelled);"><span id="modal-remaining">0.00</span> ج.م</span>
           </div>
         </div>
 
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeDetailsModal()" style="width: 100%;">إغلاق التفاصيل</button>
       </div>
     </div>
   </div>

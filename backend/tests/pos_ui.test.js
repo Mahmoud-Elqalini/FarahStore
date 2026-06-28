@@ -20,8 +20,8 @@ describe('POS UI Logic Tests (orders.js)', () => {
     global.apiCall = jest.fn().mockImplementation((url) => {
       if (url === '/customers') {
         return Promise.resolve([
-          { customer_id: 1, customer_name: 'أحمد صالح', phone: '0100', is_active: true },
-          { customer_id: 2, customer_name: 'ياسر يحيى', phone: '0111', is_active: true }
+          { customer_id: 1, customer_name: 'أحمد صالح', phone: '01000000000', is_active: true },
+          { customer_id: 2, customer_name: 'ياسر يحيى', phone: '01110000000', is_active: true }
         ]);
       }
       return Promise.resolve([]);

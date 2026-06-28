@@ -1,20 +1,8 @@
 const request = require('supertest');
 const app = require('../app');
-const pool = require('../config/db');
-
-jest.mock('../config/db', () => ({
-  query: jest.fn()
-}));
+const db = require('../config/db');
 
 describe('Products API', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  afterAll(() => {
-    jest.restoreAllMocks();
-  });
-
   describe('POST /api/products', () => {
     const validProduct = {
       product_name: 'Test Product',
@@ -40,15 +28,6 @@ describe('Products API', () => {
     });
 
     it('should create product and return SKU matching regex', async () => {
-      pool.query.mockResolvedValueOnce({
-        rows: [{
-          ...validProduct,
-          product_id: 1,
-          sku: '01-0001',
-          is_active: true
-        }]
-      });
-
       const res = await request(app).post('/api/products').send(validProduct);
       expect(res.status).toBe(201);
       expect(res.body.data).toBeDefined();
@@ -59,7 +38,8 @@ describe('Products API', () => {
 
   describe('POST /api/products/:id/restock', () => {
     it('should return 400 INACTIVE_PRODUCT if product is inactive', async () => {
-      pool.query.mockResolvedValueOnce({ rows: [{ is_active: false }] }); // check active
+      // Setup: Deactivate product first
+      db.prepare("UPDATE products SET is_active = 0 WHERE product_id = 1").run();
 
       const res = await request(app)
         .post('/api/products/1/restock')
@@ -70,16 +50,6 @@ describe('Products API', () => {
     });
 
     it('should restock successfully and return WAC price', async () => {
-      pool.query.mockResolvedValueOnce({ rows: [{ is_active: true }] }); // check active
-      pool.query.mockResolvedValueOnce({
-        rows: [{
-          product_id: 1,
-          stock_quantity: 20,
-          purchase_price: 95.00,
-          selling_price: 150.00
-        }]
-      }); // restock_product result
-
       const res = await request(app)
         .post('/api/products/1/restock')
         .send({ quantity: 10, purchase_price: 90 });
@@ -92,29 +62,6 @@ describe('Products API', () => {
 
   describe('PUT /api/products/:id', () => {
     it('should ignore sku in payload and update barcode', async () => {
-      const existingProduct = {
-        product_id: 1,
-        product_name: 'Old Name',
-        purchase_price: 100,
-        selling_price: 150,
-        stock_quantity: 10,
-        category_id: 1,
-        supplier_id: 1,
-        barcode: '111',
-        sku: '01-0001',
-        is_active: true
-      };
-
-      pool.query.mockResolvedValueOnce({ rows: [existingProduct] }); // fetch existing
-      pool.query.mockResolvedValueOnce({ rows: [] }); // barcode check
-      pool.query.mockResolvedValueOnce({
-        rows: [{
-          ...existingProduct,
-          barcode: '222',
-          sku: '01-0001' // sku unchanged
-        }]
-      }); // update result
-
       const res = await request(app)
         .put('/api/products/1')
         .send({ barcode: '222', sku: '99-9999' }); // malicious sku
@@ -127,8 +74,6 @@ describe('Products API', () => {
 
   describe('DELETE /api/products/:id (Deactivate)', () => {
     it('should deactivate product (Soft Delete)', async () => {
-      pool.query.mockResolvedValueOnce({ rows: [{ product_id: 1, is_active: false }] });
-
       const res = await request(app).delete('/api/products/1');
       expect(res.status).toBe(200);
       expect(res.body.message).toBe('Product deactivated successfully');
@@ -137,7 +82,8 @@ describe('Products API', () => {
 
   describe('PUT /api/products/:id/activate', () => {
     it('should activate product', async () => {
-      pool.query.mockResolvedValueOnce({ rows: [{ product_id: 1, is_active: true }] });
+      // Setup: Deactivate product first so it can be activated
+      db.prepare("UPDATE products SET is_active = 0 WHERE product_id = 1").run();
 
       const res = await request(app).put('/api/products/1/activate');
       expect(res.status).toBe(200);

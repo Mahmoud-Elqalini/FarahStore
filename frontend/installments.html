@@ -191,11 +191,11 @@
             <label>حالة القسط</label>
             <div class="radio-group">
               <label class="radio-label">
-                <input type="radio" name="filter_status" value="all" checked>
+                <input type="radio" name="filter_status" value="all">
                 <span>الكل</span>
               </label>
               <label class="radio-label">
-                <input type="radio" name="filter_status" value="Pending">
+                <input type="radio" name="filter_status" value="Pending" checked>
                 <span>معلق</span>
               </label>
               <label class="radio-label">
@@ -239,26 +239,42 @@
 
   <!-- Pay Confirmation Modal -->
   <div class="modal-overlay" id="pay-modal">
-    <div class="modal">
+    <div class="modal-content" style="max-width: 450px; border-top: 5px solid var(--status-completed);">
       <div class="modal-header">
-        <h3>تأكيد دفع القسط</h3>
-        <button class="btn-close" onclick="closePayModal()">&times;</button>
+        <h3 style="margin: 0; color: var(--status-completed);">تأكيد دفع القسط</h3>
+        <button onclick="closePayModal()" style="background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;" title="إغلاق">&times;</button>
       </div>
-      <div class="modal-body">
-        <p style="margin-bottom: 15px; font-size: 1.1rem; color: var(--text-main);">هل أنت متأكد من تسجيل هذا القسط كمدفوع؟</p>
-        <div style="background: var(--bg-dark); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-          <div style="margin-bottom: 8px;">العميل: <span id="pay-modal-customer" style="font-weight: bold; color: var(--primary);"></span></div>
-          <div style="margin-bottom: 8px;">رقم القسط: <span id="pay-modal-number" style="font-weight: bold;"></span></div>
-          <div>المبلغ: <span id="pay-modal-amount" style="font-weight: bold; color: #2ecc71;"></span> ج.م</div>
+      <div class="modal-body" style="padding: 24px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="width: 60px; height: 60px; background: rgba(16, 185, 129, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px;">
+            <span style="color: var(--status-completed); font-size: 2rem;">💸</span>
+          </div>
+          <p style="font-size: 1.1rem; color: var(--text-main); font-weight: 600;">هل أنت متأكد من تسجيل هذا القسط كمدفوع؟</p>
         </div>
-        <div class="form-group">
-          <label>تاريخ الدفع (تلقائي اليوم)</label>
-          <input type="date" id="pay-modal-date" class="form-control">
+        
+        <div style="background: rgba(16, 185, 129, 0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.2); margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span style="color: var(--text-muted);">العميل</span>
+            <span id="pay-modal-customer" style="font-weight: bold; color: var(--text-main);"></span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span style="color: var(--text-muted);">رقم القسط</span>
+            <span style="font-weight: bold; background: var(--bg-dark); padding: 2px 8px; border-radius: 4px;">#<span id="pay-modal-number"></span></span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px dashed var(--border-color);">
+            <span style="color: var(--text-muted);">المبلغ المطلوب</span>
+            <span style="font-weight: bold; color: var(--status-completed); font-size: 1.15rem;"><span id="pay-modal-amount"></span> ج.م</span>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="color: var(--text-muted); font-size: 0.9rem;">تاريخ السداد</label>
+          <input type="date" id="pay-modal-date" class="form-control" style="background: var(--bg-dark);">
         </div>
       </div>
-      <div class="modal-footer" style="padding: 15px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px;">
-        <button class="btn btn-secondary" onclick="closePayModal()">إلغاء</button>
-        <button class="btn btn-primary" id="confirm-pay-btn" style="background: #2ecc71; border-color: #2ecc71;">تأكيد الدفع</button>
+      <div class="modal-footer" style="padding: 20px; border-top: 1px solid var(--border-color); display: flex; gap: 10px;">
+        <button class="btn btn-secondary" onclick="closePayModal()" style="flex: 1;">تراجع</button>
+        <button class="btn btn-primary" id="confirm-pay-btn" style="flex: 1; background-color: var(--status-completed); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">تأكيد ودفع</button>
       </div>
     </div>
   </div>

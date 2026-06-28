@@ -164,6 +164,7 @@ async function openDetailsModal(orderId) {
     const orderData = await apiCall(`/orders/${orderId}`);
 
     document.getElementById('modal-customer').textContent = orderData.customer_name || 'عميل غير معروف';
+    document.getElementById('modal-datetime').textContent = orderData.created_at ? formatDateArabic(orderData.created_at) : '';
     document.getElementById('modal-payment-type').textContent = orderData.payment_type === 'Cash' ? 'كاش' : 'تقسيط';
 
     const statusInfo = getStatusInfo(orderData.order_status);

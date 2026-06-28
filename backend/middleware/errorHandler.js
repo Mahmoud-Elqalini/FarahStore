@@ -8,26 +8,8 @@ function errorHandler(err, req, res, next) {
     console.error(`[GlobalErrorHandler] Error caught:`, err);
   }
 
-  // 1. Handle Custom Database Exceptions (RAISE EXCEPTION in PL/pgSQL or mocked errors)
-  if (err.code === "P0001" || !err.code) {
-    if (err.message && err.message.includes('Insufficient stock')) {
-      return res.status(400).json({
-        error_code: "INSUFFICIENT_STOCK",
-        error: "Insufficient stock for product",
-        error_ar: "المخزون غير كافٍ للمنتج"
-      });
-    }
-    if (err.message && err.message.includes('Total amount mismatch')) {
-      return res.status(400).json({
-        error_code: "AMOUNT_MISMATCH",
-        error: "Total amount does not match the sum of items",
-        error_ar: "الإجمالي المُدخل لا يطابق إجمالي الأصناف"
-      });
-    }
-  }
-
-  // 2. Handle Foreign Key Violations (23503)
-  if (err.code === "23503") {
+  // 1. Handle SQLite Foreign Key Violations
+  if (err.code === "SQLITE_CONSTRAINT_FOREIGNKEY") {
     if (req.method === 'DELETE') {
       return res.status(400).json({ 
         error_code: "LINKED_RECORDS_EXIST", 
@@ -43,8 +25,16 @@ function errorHandler(err, req, res, next) {
     }
   }
 
-  // 3. Handle Unique Constraint Violations (23505)
-  if (err.code === "23505") {
+  // 2. Handle SQLite Unique Constraint Violations
+  if (err.code === "SQLITE_CONSTRAINT_UNIQUE") {
+    // تحقق من نوع الحقل المكرر
+    if (err.message && err.message.includes('category_name')) {
+      return res.status(400).json({ error_code: "DUPLICATE_RECORD", error: "Category name already exists.", error_ar: "اسم القسم موجود بالفعل" });
+    }
+    if (err.message && err.message.includes('barcode')) {
+      return res.status(400).json({ error_code: "DUPLICATE_BARCODE", error: "Barcode already in use.", error_ar: "الباركود مستخدم لمنتج آخر" });
+    }
+    // fallback عام
     return res.status(400).json({
       error_code: "DUPLICATE_RECORD",
       error: "Record already exists.",
@@ -52,9 +42,9 @@ function errorHandler(err, req, res, next) {
     });
   }
 
-  // 4. Handle Check Constraint Violations (23514)
-  if (err.code === "23514") {
-    if (err.constraint === "products_stock_quantity_check") {
+  // 3. Handle SQLite Check Constraint Violations
+  if (err.code === "SQLITE_CONSTRAINT_CHECK") {
+    if (err.message && err.message.includes("stock_quantity")) {
       return res.status(400).json({
         error_code: "INSUFFICIENT_STOCK",
         error: "Insufficient stock.",
@@ -68,7 +58,7 @@ function errorHandler(err, req, res, next) {
     });
   }
 
-  // 5. Fallback for all other unexpected errors
+  // 4. Fallback for all other unexpected errors
   // NEVER leak DB internals (err.message) into the client response!
   res.status(500).json({
     error_code: "SERVER_ERROR",

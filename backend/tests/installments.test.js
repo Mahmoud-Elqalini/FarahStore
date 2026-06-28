@@ -1,97 +1,73 @@
 const request = require('supertest');
 const app = require('../app');
-const pool = require('../config/db');
-
-jest.mock('../config/db', () => ({
-  query: jest.fn()
-}));
+const db = require('../config/db');
 
 describe('Installments API', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  afterAll(() => {
-    jest.restoreAllMocks();
-  });
-
   describe('POST /api/installments', () => {
-    it('should return 400 REQUIRED_FIELDS if fields are missing', async () => {
+    it('should return 410 GONE since endpoint is deprecated', async () => {
       const res = await request(app).post('/api/installments').send({});
-      expect(res.status).toBe(400);
-      expect(res.body.error_code).toBe('REQUIRED_FIELDS');
-    });
-
-    it('should return 400 ZERO_OR_NEGATIVE_AMOUNT if p_months <= 0', async () => {
-      const res = await request(app).post('/api/installments').send({ p_order_id: 1, p_months: 0, p_first_due_date: '2025-01-01' });
-      expect(res.status).toBe(400);
-      expect(res.body.error_code).toBe('ZERO_OR_NEGATIVE_AMOUNT');
-    });
-
-    it('should return 400 FK_NOT_EXISTS if order_id is invalid', async () => {
-      const dbError = new Error();
-      dbError.code = '23503';
-      pool.query.mockRejectedValue(dbError);
-
-      const res = await request(app).post('/api/installments').send({ p_order_id: 999, p_months: 5, p_first_due_date: '2025-01-01' });
-      expect(res.status).toBe(400);
-      expect(res.body.error_code).toBe('FK_NOT_EXISTS');
+      expect(res.status).toBe(410);
+      expect(res.body.error_code).toBe('GONE');
     });
   });
 
   describe('PUT /api/installments/:id', () => {
-    const existingRow = { installment_id: 1, amount: 500, due_date: '2025-01-01', payment_date: null, status: 'Pending' };
+    beforeEach(() => {
+      db.prepare(`
+        INSERT INTO installments (installment_id, order_id, installment_number, amount, due_date, status)
+        VALUES (1, 1, 1, 500, '2025-01-01', 'Pending')
+      `).run();
+    });
 
     it('should return 400 INVALID_STATUS if status is wrong', async () => {
-      pool.query.mockResolvedValueOnce({ rows: [existingRow] }); // Fetch check passes
-      
       const res = await request(app).put('/api/installments/1').send({ status: 'Cancelled' });
       expect(res.status).toBe(400);
       expect(res.body.error_code).toBe('INVALID_STATUS');
     });
 
     it('should return 400 ZERO_OR_NEGATIVE_AMOUNT if amount <= 0', async () => {
-      pool.query.mockResolvedValueOnce({ rows: [existingRow] });
-      
       const res = await request(app).put('/api/installments/1').send({ amount: -50 });
       expect(res.status).toBe(400);
       expect(res.body.error_code).toBe('ZERO_OR_NEGATIVE_AMOUNT');
     });
 
     it('should enforce data consistency: payment_date becomes null if status is not Paid', async () => {
-      // Suppose existing row is Paid and has a payment_date
-      const paidRow = { ...existingRow, status: 'Paid', payment_date: '2025-02-01' };
-      pool.query.mockResolvedValueOnce({ rows: [paidRow] }); // fetch
-      pool.query.mockResolvedValueOnce({ rows: [{ ...paidRow, status: 'Pending', payment_date: null }] }); // update returning
+      // Setup: Make it Paid first
+      db.prepare("UPDATE installments SET status = 'Paid', payment_date = '2025-02-01' WHERE installment_id = 1").run();
 
-      const res = await request(app).put('/api/installments/1').send({ status: 'Pending' }); // User just changes status
-      
+      const res = await request(app).put('/api/installments/1').send({ status: 'Pending' }); 
       expect(res.status).toBe(200);
-      // Ensure the query passed null to the database
-      expect(pool.query).toHaveBeenNthCalledWith(2, expect.stringContaining('UPDATE installments'), [500, '2025-01-01', null, 'Pending', "1"]);
+
+      // Verify DB
+      const record = db.prepare('SELECT payment_date FROM installments WHERE installment_id = 1').get();
+      expect(record.payment_date).toBeNull();
     });
 
     it('should keep payment_date if status is Paid', async () => {
-      pool.query.mockResolvedValueOnce({ rows: [existingRow] }); // fetch
-      pool.query.mockResolvedValueOnce({ rows: [{ ...existingRow, status: 'Paid', payment_date: '2025-03-01' }] }); // update returning
-
       const res = await request(app).put('/api/installments/1').send({ status: 'Paid', payment_date: '2025-03-01' });
-      
       expect(res.status).toBe(200);
-      expect(pool.query).toHaveBeenNthCalledWith(2, expect.stringContaining('UPDATE installments'), [500, '2025-01-01', '2025-03-01', 'Paid', "1"]);
+
+      // Verify DB
+      const record = db.prepare('SELECT payment_date FROM installments WHERE installment_id = 1').get();
+      expect(record.payment_date).toBe('2025-03-01');
     });
   });
 
   describe('GET /api/installments', () => {
+    beforeEach(() => {
+      db.prepare(`
+        INSERT INTO installments (installment_id, order_id, installment_number, amount, due_date, status)
+        VALUES (1, 1, 1, 500, '2025-01-01', 'Pending')
+      `).run();
+    });
+
     it('should return all installments', async () => {
-      pool.query.mockResolvedValueOnce({ rows: [{ installment_id: 1, amount: 500 }] });
       const res = await request(app).get('/api/installments');
       expect(res.status).toBe(200);
       expect(res.body.length).toBe(1);
     });
 
     it('should return 404 for a missing single installment', async () => {
-      pool.query.mockResolvedValueOnce({ rows: [] });
       const res = await request(app).get('/api/installments/999');
       expect(res.status).toBe(404);
       expect(res.body.error_code).toBe('NOT_FOUND');
