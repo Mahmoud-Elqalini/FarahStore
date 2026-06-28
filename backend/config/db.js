@@ -1,16 +1,13 @@
-const { Pool } = require("pg");
-require("dotenv").config();
+const Database = require("better-sqlite3");
+const path = require("path");
 
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-});
+const dbPath = path.join(__dirname, "..", "farahstore.db");
+const db = new Database(dbPath);
 
-pool.query("SELECT NOW()")
-  .then(() => console.log("✅ Database connected successfully"))
-  .catch((err) => console.error("❌ Database connection failed:", err.message));
+db.pragma("journal_mode = WAL");
+db.pragma("foreign_keys = ON");
+db.pragma("synchronous = NORMAL");
 
-module.exports = pool;
+console.log("✅ SQLite Database connected successfully at:", dbPath);
+
+module.exports = db;
