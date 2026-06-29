@@ -1,84 +1,84 @@
 # 🛒 Farah Store - POS System
 
-نظام متكامل لإدارة نقاط البيع (Point of Sale) مبني لتطبيقات سطح المكتب باستخدام تقنيات الويب الحديثة وبيئة **Electron.js**. يوفر التطبيق تجربة مستخدم سلسة وسريعة مع نظام قاعدة بيانات محلي صلب يضمن استقرار بياناتك وأمانها.
+A comprehensive Point of Sale (POS) system built for desktop environments using modern web technologies and the **Electron.js** framework. The application provides a seamless, fast, and responsive user experience, backed by a robust local database to ensure data security and stability.
 
 ---
 
-## ✨ أهم المميزات (Key Features)
+## ✨ Key Features
 
-- **🖥️ تطبيق سطح مكتب مستقل (Desktop App):** مبني باستخدام `Electron.js` ليعمل بسلاسة كبرنامج مستقل على نظام تشغيل Windows دون الحاجة لمتصفح.
-- **🗄️ قاعدة بيانات محلية سريعة (SQLite):** يعتمد على `better-sqlite3` مع تفعيل وضع `WAL` للحصول على أداء فائق في عمليات القراءة والكتابة والعمل المتزامن السريع.
-- **📦 إدارة شاملة للمخزون:** إضافة المنتجات، وتصنيفها، ومراقبة النواقص، وربطها بالموردين.
-- **👥 إدارة العملاء والموردين:** الاحتفاظ ببياناتهم وسجل حساباتهم.
-- **🧾 نظام فواتير وأقساط:** دعم لدفعات الـ (Cash) وكذلك إنشاء خطط تقسيط (Installments) للعملاء وتتبع الأقساط المتأخرة والمسددة.
-- **🛡️ نظام نسخ احتياطي واستعادة متطور (Backup & Restore):**
-  - **النسخ التلقائي الذكي (Auto-Backup):** يقوم النظام بعمل نسخ احتياطي تلقائي عند إغلاق التطبيق في حال حدوث أي تغييرات على البيانات.
-  - **الاستعادة الآمنة (Atomic Restore):** يعتمد النظام على عملية استعادة بيانات آمنة بالكامل لا تؤدي لتلف القاعدة في حال فشل الاستعادة لأي سبب طارئ.
-  - **تنظيف ذكي للنسخ (Retention):** يقوم النظام بالاحتفاظ بآخر `5` نسخ احتياطية فقط قبل الاستعادة لحماية مساحة التخزين الخاصة بك.
-  - **فحص التكامل (Integrity Check):** لا يسمح النظام باسترجاع قواعد بيانات خارجية أو ناقصة أو غير متوافقة مع إصدار التطبيق (Schema Version).
-
----
-
-## 📊 الأرقام والإنجازات الفنية (Metrics & Achievements)
-
-لقد تم بناء التطبيق مع التركيز على الاستقرار والجودة العالية:
-
-- 🧪 **تغطية اختبارات 100% (Test Coverage):** تم كتابة وتشغيل **20 ملف اختبار (Test Suites)** و **126 اختبار فردي (Unit & Integration Tests)** لاختبار مسارات العمل من بداية النظام وحتى النهاية (E2E) باستخدام إطار عمل `Jest`.
-- ⚡ **أداء عالي:** زمن الاستجابة في عمليات قاعدة البيانات يقاس بأجزاء من الثانية بفضل واجهات الـ API المحلية المدمجة.
-- 📐 **أمان البيانات:** التعامل مع استثناءات الإغلاق، والأخطاء البرمجية بصورة تضمن عدم فقدان السجلات.
+- **🖥️ Standalone Desktop App:** Built with `Electron.js` to run smoothly as an independent application on Windows without requiring a web browser.
+- **🗄️ Blazing Fast Local Database (SQLite):** Powered by `better-sqlite3` with `WAL` (Write-Ahead Logging) mode enabled for superior read/write performance and concurrent operation handling.
+- **📦 Comprehensive Inventory Management:** Easily add products, organize them into categories, monitor low stock, and link them to respective suppliers.
+- **👥 Customer & Supplier Management:** Maintain detailed records, contact information, and accounting histories for both customers and suppliers.
+- **🧾 Billing & Installments System:** Supports full cash payments as well as custom installment plans for customers, tracking both overdue and settled payments efficiently.
+- **🛡️ Advanced Backup & Restore System:**
+  - **Smart Auto-Backup:** Automatically backs up the database upon closing the application if any changes were made.
+  - **Atomic Restore:** Relies on a completely secure atomic restoration process that ensures the database never corrupts, even if the restore operation is unexpectedly interrupted.
+  - **Smart Retention Strategy:** Protects your disk space by automatically keeping only the last `5` backup snapshots.
+  - **Integrity Check:** The system actively prevents restoring from external, incomplete, or incompatible database schema versions.
 
 ---
 
-## 🛠️ التقنيات المستخدمة (Tech Stack)
+## 📊 Metrics & Technical Achievements
 
-* **الواجهة الأمامية (Frontend):** HTML, Vanilla JavaScript, Vanilla CSS (واجهة سريعة وخفيفة بتصميم مريح للعين).
-* **الخلفية والمحرك (Backend):** Node.js & Express.
-* **إطار عمل سطح المكتب:** Electron.js.
-* **قاعدة البيانات:** SQLite (`better-sqlite3`).
-* **الاختبار (Testing):** Jest & Supertest.
+The application was built with a strict focus on stability, performance, and code quality:
+
+- 🧪 **100% Test Coverage:** A total of **20 Test Suites** and **126 Unit & Integration Tests (E2E)** were written and executed successfully using the `Jest` framework, covering all workflows from system initialization to complex transactions.
+- ⚡ **High Performance:** Database query response times are measured in milliseconds thanks to integrated local APIs.
+- 📐 **Data Safety:** Advanced error handling and safe exit strategies guarantee zero data loss during operations.
 
 ---
 
-## 🚀 كيفية التثبيت والتشغيل (Installation & Setup)
+## 🛠️ Tech Stack
 
-لبيئة التطوير (Development):
+* **Frontend:** HTML, Vanilla JavaScript, Vanilla CSS (Lightweight, responsive, and eye-friendly UI).
+* **Backend Engine:** Node.js & Express (Internal routing API).
+* **Desktop Framework:** Electron.js.
+* **Database:** SQLite (`better-sqlite3`).
+* **Testing:** Jest & Supertest.
 
-1. **تنزيل المشروع:**
+---
+
+## 🚀 Installation & Setup
+
+For Development Environment:
+
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/Mahmoud-Elqalini/FarahStore.git
    cd FarahStore
    ```
 
-2. **تثبيت الاعتمادات (Dependencies):**
+2. **Install Dependencies:**
    ```bash
    npm install
    ```
 
-3. **تشغيل التطبيق:**
+3. **Run the Application:**
    ```bash
    npm start
    ```
 
-4. **تشغيل الاختبارات (Running Tests):**
+4. **Run the Tests:**
    ```bash
    npm run test
    ```
 
 ---
 
-## 📦 بناء النسخة النهائية (Build for Production)
+## 📦 Build for Production
 
-لإنشاء ملف التثبيت (Setup.exe) لتوزيعه على أجهزة Windows:
+To generate the setup executable (`Setup.exe`) for distribution on Windows machines:
 
 ```bash
 npm run build
 ```
-سيتم بناء البرنامج وتصدير ملف التثبيت داخل مجلد `dist/`.
+The final application installer will be generated and placed inside the `dist/` directory.
 
 ---
 
-## 🤝 المساهمة (Contributing)
-هذا المشروع مفتوح للتطوير والتحسين، يمكنك دوماً إضافة ميزات جديدة مثل عمل تقارير ومخططات (Charts)، أو ربط التطبيق بالطباعة المباشرة، أو النسخ الاحتياطي السحابي.
+## 🤝 Contributing
+This project is open for future enhancements. Potential features could include integrating reporting charts, direct hardware printing support, or cloud-based backup synchronization.
 
 ---
-**صُنع بحب ❤️ لدعم المشاريع وإدارة المبيعات.**
+**Crafted with love ❤️ to support local businesses and sales management.**
