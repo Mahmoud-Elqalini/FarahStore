@@ -81,4 +81,4 @@ The final application installer will be generated and placed inside the `dist/` 
 This project is open for future enhancements. Potential features could include integrating reporting charts, direct hardware printing support, or cloud-based backup synchronization.
 
 ---
-**Crafted with love ❤️ to support local businesses and sales management.**
+**Crafted with love ❤️ by Mahmoud Elqalini to support local businesses and sales management.**
