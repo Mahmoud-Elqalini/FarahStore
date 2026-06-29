@@ -11,7 +11,8 @@ const PAGE_TITLES = {
   'customers': 'العملاء',
   'orders': 'الطلبات (نقطة البيع)',
   'sales': 'سجل المبيعات',
-  'installments': 'إدارة الأقساط'
+  'installments': 'إدارة الأقساط',
+  'backup': 'النسخ الاحتياطي والاستعادة'
 };
 
 async function loadComponent(selector, path) {

@@ -1,6 +1,8 @@
 const Database = require("better-sqlite3");
 const path = require("path");
 
+const CURRENT_SCHEMA_VERSION = 1;
+
 let dbPath;
 if (process.env.NODE_ENV === 'test') {
   dbPath = ':memory:';
@@ -24,6 +26,15 @@ console.log("✅ SQLite Database connected successfully at:", dbPath);
 console.log("Initializing database schema...");
 
 db.exec(`
+-- =========================================================
+-- APP METADATA
+-- =========================================================
+CREATE TABLE IF NOT EXISTS app_metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+INSERT OR IGNORE INTO app_metadata (key, value) VALUES ('schema_version', '${CURRENT_SCHEMA_VERSION}');
+
 -- =========================================================
 -- CATEGORIES
 -- =========================================================
@@ -132,6 +143,9 @@ CREATE INDEX IF NOT EXISTS idx_orderdetails_product ON order_details(product_id)
 CREATE INDEX IF NOT EXISTS idx_installments_order ON installments(order_id);
 `);
 
-console.log("✅ Database schema initialized successfully!");
+console.log("✅ Database schema initialized successfully");
+
+db.CURRENT_SCHEMA_VERSION = CURRENT_SCHEMA_VERSION;
+db.dbPath = dbPath;
 
 module.exports = db;

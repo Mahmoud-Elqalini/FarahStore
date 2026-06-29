@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, dialog, Menu, shell, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const log = require('electron-log');
@@ -49,7 +49,8 @@ if (!gotTheLock) {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        sandbox: true
+        sandbox: true,
+        preload: path.join(__dirname, 'preload.js')
       }
     });
 
@@ -73,6 +74,48 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     createWindow();
+
+    // IPC Handlers
+    const backupService = require('./backend/services/backupService');
+
+    ipcMain.handle('backup-database', async (event) => {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const defaultPath = path.join(app.getPath('desktop'), `FarahStore_Backup_${timestamp}.db`);
+      
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: 'Save Database Backup',
+        defaultPath: defaultPath,
+        filters: [{ name: 'SQLite Database', extensions: ['db', 'sqlite'] }]
+      });
+
+      if (canceled) {
+        return { success: false, cancelled: true };
+      }
+
+      return await backupService.backupDatabase(filePath);
+    });
+
+    ipcMain.handle('restore-database', async (event) => {
+      const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        title: 'Select Database Backup',
+        properties: ['openFile'],
+        filters: [{ name: 'SQLite Database', extensions: ['db', 'sqlite'] }]
+      });
+
+      if (canceled || filePaths.length === 0) {
+        return { success: false, cancelled: true };
+      }
+
+      const result = await backupService.restoreDatabase(filePaths[0]);
+      
+      if (result.success) {
+        // App needs to be relaunched to reconnect db properly
+        app.relaunch();
+        app.quit();
+      }
+      
+      return result;
+    });
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
