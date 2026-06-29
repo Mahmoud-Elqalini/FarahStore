@@ -120,6 +120,8 @@ function closeModal(modalId) {
 }
 
 // Close modal when clicking outside of it (on the overlay)
+
+
 document.addEventListener('click', (e) => {
   if (e.target.classList.contains('modal-overlay')) {
     e.target.classList.remove('active');
@@ -229,4 +231,16 @@ function showConfirmModal(message, onConfirm) {
     onConfirm();
   });
   openModal('confirm-modal');
+}
+
+async function initLayout() {
+  if (typeof window.loadLayout === 'function') {
+    await window.loadLayout();
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initLayout);
+} else {
+  initLayout();
 }

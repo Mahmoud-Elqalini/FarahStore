@@ -8,6 +8,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Serve static frontend files
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../frontend')));
+
 // Request Logger Middleware
 app.use((req, res, next) => {
   const start = Date.now();
@@ -55,4 +59,24 @@ if (require.main === module) {
   });
 }
 
-module.exports = app;
+function startServer() {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(0, () => {
+      const port = server.address().port;
+      console.log(`Embedded server running on dynamic port ${port}`);
+      
+      const shutdownServer = () => {
+        return new Promise((closeResolve, closeReject) => {
+          server.close((err) => {
+            if (err) closeReject(err);
+            else closeResolve();
+          });
+        });
+      };
+      
+      resolve({ port, shutdownServer });
+    }).on('error', reject);
+  });
+}
+
+module.exports = { app, startServer };

@@ -36,3 +36,13 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Electron Build Output
+dist/
+*.exe
+
+# SQLite Databases
+*.db
+*.db-shm
+*.db-wal
+backend/database/*.db*

@@ -51,13 +51,13 @@ async function loadDashboardData() {
       renderEmptyState('low-stock-table-body', 'لا توجد منتجات منخفضة المخزون 🟢');
     } else {
       tbody.innerHTML = '';
-      data.lowStockProducts.forEach(product => {
+      data.lowStockProducts.forEach((product, index) => {
         const isCritical = product.stock_quantity < 5;
         const colorStyle = isCritical ? 'color: var(--status-cancelled); font-weight: 700;' : '';
         
         tbody.innerHTML += `
           <tr>
-            <td>#${product.product_id}</td>
+            <td>${index + 1}</td>
             <td>${escapeHTML(product.product_name)}</td>
             <td style="${colorStyle}">${product.stock_quantity} قطعة</td>
           </tr>

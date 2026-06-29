@@ -1,7 +1,19 @@
 const Database = require("better-sqlite3");
 const path = require("path");
 
-const dbPath = process.env.NODE_ENV === 'test' ? ':memory:' : path.join(__dirname, '..', 'database', 'farahstore.db');
+let dbPath;
+if (process.env.NODE_ENV === 'test') {
+  dbPath = ':memory:';
+} else if (process.env.APP_DATABASE_PATH) {
+  const fs = require('fs');
+  const dir = path.dirname(process.env.APP_DATABASE_PATH);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  dbPath = process.env.APP_DATABASE_PATH;
+} else {
+  dbPath = path.join(__dirname, '..', 'database', 'farahstore.db');
+}
 const db = new Database(dbPath);
 
 db.pragma("journal_mode = WAL");
