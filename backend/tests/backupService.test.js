@@ -3,6 +3,11 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 const testDbPath = path.join(__dirname, 'temp_test_farahstore.db');
+
+// Store original env to avoid leaking to other tests in the same worker
+const originalNodeEnv = process.env.NODE_ENV;
+const originalDbPath = process.env.APP_DATABASE_PATH;
+
 process.env.NODE_ENV = 'development'; 
 process.env.APP_DATABASE_PATH = testDbPath;
 
@@ -47,6 +52,14 @@ describe('Backup and Restore Service', () => {
         } catch (e) {}
 
         fs.rmSync(backupDir, { recursive: true, force: true });
+
+        // Restore environment variables
+        process.env.NODE_ENV = originalNodeEnv;
+        if (originalDbPath === undefined) {
+            delete process.env.APP_DATABASE_PATH;
+        } else {
+            process.env.APP_DATABASE_PATH = originalDbPath;
+        }
     });
 
     it('should create a valid backup file', async () => {
@@ -80,7 +93,7 @@ describe('Backup and Restore Service', () => {
 
         const verification = backupServiceLocal.verifyDatabaseIntegrity(invalidDbPath);
         expect(verification.valid).toBe(false);
-        expect(verification.error).toMatch(/This is not a FarahStore backup/);
+        expect(verification.error).toMatch(/جدول مفقود/);
     });
 
     it('should fail verification for schema version mismatch', () => {
@@ -92,6 +105,9 @@ describe('Backup and Restore Service', () => {
             CREATE TABLE customers (id INTEGER);
             CREATE TABLE suppliers (id INTEGER);
             CREATE TABLE categories (id INTEGER);
+            CREATE TABLE orders (id INTEGER);
+            CREATE TABLE order_details (id INTEGER);
+            CREATE TABLE installments (id INTEGER);
             CREATE TABLE app_metadata (key TEXT, value TEXT);
             INSERT INTO app_metadata (key, value) VALUES ('schema_version', '999');
         `);

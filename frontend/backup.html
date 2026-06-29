@@ -252,6 +252,81 @@
           </div>
 
         </div>
+        
+        <!-- Auto Backup Settings Section -->
+        <div class="auto-backup-section" style="max-width: 900px; margin: 0 auto 50px; background: linear-gradient(145deg, var(--bg-card), #161616); border: 1px solid rgba(255,255,255,0.05); border-radius: 24px; padding: 30px; animation: fadeInUp 0.8s ease backwards;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
+                <div>
+                    <h3 style="font-size: 1.4rem; color: var(--text-main); margin-bottom: 5px;">إعدادات النسخ الاحتياطي التلقائي</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">يضمن لك الحفاظ على أحدث بياناتك دون تدخل يدوي</p>
+                </div>
+                <style>
+                    .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+                    .switch input { opacity: 0; width: 0; height: 0; }
+                    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 34px; }
+                    .slider:before { position: absolute; content: ""; height: 26px; width: 26px; right: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+                    .switch input:checked + .slider { background-color: var(--primary); }
+                    .switch input:focus + .slider { box-shadow: 0 0 1px var(--primary); }
+                    .switch input:checked + .slider:before { transform: translateX(-26px); }
+                </style>
+                <label class="switch">
+                    <input type="checkbox" id="auto-backup-toggle">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+
+            <style>
+                .auto-backup-select {
+                    width: 100%; 
+                    background-color: rgba(0,0,0,0.2); 
+                    border: 1px solid rgba(255,255,255,0.1); 
+                    color: white; 
+                    padding: 10px; 
+                    border-radius: 8px;
+                    transition: border-color 0.3s, box-shadow 0.3s;
+                }
+                .auto-backup-select:focus {
+                    outline: none;
+                    border-color: var(--primary);
+                    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+                }
+                .auto-backup-select option {
+                    background-color: #1e1e1e;
+                    color: white;
+                    padding: 10px;
+                }
+            </style>
+            <div id="auto-backup-settings" style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 25px; transition: opacity 0.3s; opacity: 1;">
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="display: block; color: var(--text-muted); margin-bottom: 8px;">معدل النسخ</label>
+                    <select id="auto-backup-frequency" class="auto-backup-select">
+                        <option value="close">عند إغلاق التطبيق (إذا حدث تغيير)</option>
+                        <option value="daily">مرة يومياً (عند الفتح)</option>
+                        <option value="weekly">مرة أسبوعياً (عند الفتح)</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="display: block; color: var(--text-muted); margin-bottom: 8px;">الاحتفاظ بآخر (نسخ)</label>
+                    <select id="auto-backup-retention" class="auto-backup-select">
+                        <option value="5">5 نسخ</option>
+                        <option value="10">10 نسخ</option>
+                        <option value="20">20 نسخة</option>
+                        <option value="50">50 نسخة</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 5px;">حالة آخر نسخة تلقائية:</div>
+                    <div id="auto-backup-status" style="font-size: 1.1rem; color: white;">جاري التحميل...</div>
+                </div>
+                <button id="btn-open-backup-folder" class="btn" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 8px; font-size: 0.9rem;">
+                    <svg style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-left: 5px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                    فتح المجلد
+                </button>
+            </div>
+        </div>
 
       </div>
     </main>

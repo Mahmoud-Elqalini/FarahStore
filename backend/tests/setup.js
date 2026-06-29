@@ -1,6 +1,7 @@
-const db = require('../config/db');
-
 beforeEach(() => {
+  const db = require('../config/db');
+  if (!db || !db.open) return;
+
   // Clear all tables
   db.exec(`
     DELETE FROM order_details;
@@ -31,6 +32,8 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  // Close the database connection if needed (better-sqlite3 closes when process ends, but it's good practice)
-  db.close();
+  const db = require('../config/db');
+  if (db && db.open) {
+    db.close();
+  }
 });

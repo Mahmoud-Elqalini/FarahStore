@@ -1,13 +1,16 @@
 const Database = require("better-sqlite3");
 const path = require("path");
+const fs = require("fs");
+const log = require("electron-log");
 
 const CURRENT_SCHEMA_VERSION = 1;
 
 let dbPath;
-if (process.env.NODE_ENV === 'test') {
+if (process.env.NODE_ENV === 'test' && !process.env.TEST_DB_FILE) {
   dbPath = ':memory:';
+} else if (process.env.TEST_DB_FILE) {
+  dbPath = process.env.TEST_DB_FILE;
 } else if (process.env.APP_DATABASE_PATH) {
-  const fs = require('fs');
   const dir = path.dirname(process.env.APP_DATABASE_PATH);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -22,8 +25,8 @@ db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 db.pragma("synchronous = NORMAL");
 
-console.log("✅ SQLite Database connected successfully at:", dbPath);
-console.log("Initializing database schema...");
+log.info("✅ SQLite Database connected successfully at:", dbPath);
+log.info("Initializing database schema...");
 
 db.exec(`
 -- =========================================================
@@ -143,9 +146,17 @@ CREATE INDEX IF NOT EXISTS idx_orderdetails_product ON order_details(product_id)
 CREATE INDEX IF NOT EXISTS idx_installments_order ON installments(order_id);
 `);
 
-console.log("✅ Database schema initialized successfully");
+log.info("✅ Database schema initialized successfully");
 
 db.CURRENT_SCHEMA_VERSION = CURRENT_SCHEMA_VERSION;
 db.dbPath = dbPath;
+
+// Track changes for Auto-Backup
+try {
+    const res = db.prepare("SELECT total_changes() as c").get();
+    db.lastBackupChanges = res ? res.c : 0;
+} catch (e) {
+    db.lastBackupChanges = 0;
+}
 
 module.exports = db;
