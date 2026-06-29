@@ -7,7 +7,8 @@
     "start": "electron .",
     "test": "npx jest",
     "lint": "npx eslint .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "postinstall": "electron-builder install-app-deps"
   },
   "build": {
     "appId": "com.farahstore.pos",

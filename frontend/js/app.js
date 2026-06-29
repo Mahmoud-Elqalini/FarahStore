@@ -1,5 +1,5 @@
 // Base API URL
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = '/api';
 
 // Error codes dictionary — maps server error_code to Arabic user-facing messages
 const ERROR_MESSAGES = {
