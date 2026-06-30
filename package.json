@@ -14,7 +14,7 @@
     "appId": "com.farahstore.pos",
     "asar": true,
     "directories": {
-      "output": "dist"
+      "output": "C:/FarahStore"
     },
     "files": [
       "backend/**/*",
