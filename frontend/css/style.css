@@ -607,6 +607,10 @@ tr:hover td {
   font-size: 0.8rem;
 }
 
+#print-area {
+  display: none;
+}
+
 /* 11. Print Styles for Receipt */
 @media print {
   body {
