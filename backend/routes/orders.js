@@ -49,6 +49,7 @@ router.get("/:id", (req, res, next) => {
     // Calculate remaining_balance
     if (orderData.payment_type === 'Cash') {
       orderData.remaining_balance = 0;
+      orderData.paid_amount = orderData.total_amount;
     } else {
       const remainingQuery = `
         SELECT COALESCE(SUM(amount), 0) as remaining_balance
@@ -57,7 +58,28 @@ router.get("/:id", (req, res, next) => {
       `;
       const remainingResult = db.prepare(remainingQuery).get(id);
       orderData.remaining_balance = Number(remainingResult.remaining_balance);
+
+      const paidQuery = `
+        SELECT COALESCE(SUM(amount), 0) as paid_amount
+        FROM installments
+        WHERE order_id = ? AND status = 'Paid'
+      `;
+      const paidResult = db.prepare(paidQuery).get(id);
+      orderData.paid_amount = (orderData.down_payment || 0) + Number(paidResult.paid_amount);
+
+      const instInfoQuery = `
+        SELECT COUNT(*) as months, MIN(amount) as monthly_amount
+        FROM installments
+        WHERE order_id = ?
+      `;
+      const instInfo = db.prepare(instInfoQuery).get(id);
+      orderData.months = instInfo.months;
+      orderData.monthly_amount = instInfo.monthly_amount;
+
+      orderData.final_total = orderData.paid_amount + orderData.remaining_balance;
     }
+
+    orderData.products_total = orderData.total_amount;
 
     res.json(orderData);
   } catch (err) {
@@ -68,7 +90,7 @@ router.get("/:id", (req, res, next) => {
 // POST /api/orders — Create new order
 router.post("/", (req, res, next) => {
   try {
-    const { customer_id, payment_type, items, months, first_due_date } = req.body;
+    const { customer_id, payment_type, items, months, first_due_date, down_payment, interest_rate } = req.body;
 
     // 1. Basic Validations
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -99,7 +121,7 @@ router.post("/", (req, res, next) => {
 
     // Define JS Transaction for create_order and generate_installments
     const createOrderTx = db.transaction((orderData) => {
-      const { customerId, payType, reqItems, numMonths, firstDueDate } = orderData;
+      const { customerId, payType, reqItems, numMonths, firstDueDate, downPayment, interestRate } = orderData;
       
       // 2. Validate Customer
       const custRes = db.prepare('SELECT is_active FROM customers WHERE customer_id = ?').get(customerId);
@@ -132,10 +154,18 @@ router.post("/", (req, res, next) => {
       
       // 4. Create Order
       const initialStatus = payType === 'Cash' ? 'Completed' : 'Active';
+      let actualDownPayment = 0;
+      let actualRate = 0;
+
+      if (payType === 'Installment') {
+        actualDownPayment = downPayment || 0;
+        actualRate = interestRate || 0;
+      }
+
       const orderInfo = db.prepare(`
-        INSERT INTO orders (customer_id, payment_type, total_amount, order_status)
-        VALUES (?, ?, ?, ?)
-      `).run(customerId, payType, totalAmount, initialStatus);
+        INSERT INTO orders (customer_id, payment_type, total_amount, order_status, installment_rate, down_payment)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(customerId, payType, totalAmount, initialStatus, actualRate, actualDownPayment);
       
       const newOrderId = orderInfo.lastInsertRowid;
       
@@ -149,10 +179,15 @@ router.post("/", (req, res, next) => {
       }
       
       // 6. Generate Installments if needed
+      let totalInstallmentDebt = 0;
       if (payType === 'Installment') {
         const insertInstallment = db.prepare(`INSERT INTO installments (order_id, installment_number, amount, due_date, status) VALUES (?, ?, ?, ?, 'Pending')`);
         
-        const baseAmount = Math.round(totalAmount / numMonths);
+        const remaining = totalAmount - actualDownPayment;
+        const interestAmount = remaining * (actualRate / 100);
+        totalInstallmentDebt = remaining + interestAmount;
+
+        const baseAmount = Math.round(totalInstallmentDebt / numMonths);
         let totalAssigned = 0;
         
         const firstDate = new Date(firstDueDate);
@@ -161,7 +196,7 @@ router.post("/", (req, res, next) => {
           let currentAmount = baseAmount;
           
           if (i === numMonths) {
-            currentAmount = totalAmount - totalAssigned;
+            currentAmount = totalInstallmentDebt - totalAssigned;
           }
           
           // Calculate date for this specific installment (offset by i-1 months)
@@ -184,31 +219,39 @@ router.post("/", (req, res, next) => {
         }
       }
       
-      return { newOrderId, totalAmount };
+      return { newOrderId, totalAmount, actualDownPayment, totalInstallmentDebt };
     });
 
     try {
-      const { newOrderId, totalAmount } = createOrderTx({
+      const { newOrderId, totalAmount, actualDownPayment, totalInstallmentDebt } = createOrderTx({
         customerId: customer_id,
         payType: payment_type,
         reqItems: items,
         numMonths: months,
-        firstDueDate: first_due_date
+        firstDueDate: first_due_date,
+        downPayment: down_payment,
+        interestRate: interest_rate
       });
       
       // Success Response
-      const paid_amount = payment_type === 'Cash' ? totalAmount : 0;
-      const remaining_balance = payment_type === 'Installment' ? totalAmount : 0;
+      const paid_amount = payment_type === 'Cash' ? totalAmount : actualDownPayment;
+      const remaining_balance = payment_type === 'Installment' ? totalInstallmentDebt : 0;
+      const final_total = payment_type === 'Installment' ? (actualDownPayment + totalInstallmentDebt) : totalAmount;
 
       res.status(201).json({
         success: true,
         order_id: newOrderId,
         invoice_number: `ORD-${newOrderId}`,
         created_at: new Date().toISOString(),
-        total_amount: totalAmount,
+        total_amount: final_total,
+        products_total: totalAmount,
         payment_type,
         paid_amount,
         remaining_balance,
+        down_payment: actualDownPayment,
+        interest_rate: interest_rate || 0,
+        months: months || 0,
+        monthly_amount: payment_type === 'Installment' ? (totalInstallmentDebt / months) : 0,
         message: "تم إنشاء الفاتورة بنجاح"
       });
       

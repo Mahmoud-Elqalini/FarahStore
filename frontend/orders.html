@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FarahStore - المبيعات (POS)</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=4">
   <style>
     .pos-container {
       display: flex;
@@ -412,14 +412,21 @@
                 </label>
               </div>
 
-              <div class="installment-fields" id="installment-fields">
+              <div class="installment-fields" id="installment-fields" style="grid-template-columns: 1fr 1fr; row-gap: 15px;">
+                <div class="form-group">
+                  <label>المقدم (ج.م)</label>
+                  <input type="number" id="installments-downpayment" class="form-control" min="0" value="0">
+                </div>
+                <div class="form-group">
+                  <label>نسبة التقسيط (%)</label>
+                  <input type="number" id="installments-interest" class="form-control" min="0" value="15" step="0.1">
+                </div>
                 <div class="form-group">
                   <label>عدد الأشهر</label>
                   <input type="number" id="installments-months" class="form-control" min="1" value="12">
                 </div>
                 <div class="form-group">
                   <label>تاريخ أول قسط</label>
-                  <!-- // TODO: add date validation -->
                   <input type="date" id="installments-first-date" class="form-control">
                 </div>
               </div>
@@ -482,6 +489,13 @@
         <p class="receipt-subtitle">تم حفظ الفاتورة في النظام</p>
 
         <div class="receipt-card">
+          <!-- Store Info -->
+          <div style="text-align: center; margin-bottom: 15px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
+            <h3 style="margin: 0; color: var(--text-primary);">FarahStore 💎</h3>
+            <p style="margin: 4px 0 2px; font-size: 0.85rem; color: var(--text-secondary);">مشله بجانب المحطه، كفرالزيات، طنطا، الغربية</p>
+            <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">ت: 01019809455</p>
+          </div>
+
           <div class="receipt-row">
             <span>رقم الفاتورة:</span>
             <span id="receipt-invoice" class="fw-bold"></span>
@@ -499,8 +513,35 @@
             <span id="receipt-payment" class="fw-bold"></span>
           </div>
           <hr class="receipt-divider">
+          <div id="installment-details" style="display: none;">
+            <div class="receipt-row" style="color: var(--text-secondary); font-size: 0.9rem;">
+              <span>إجمالي المنتجات:</span>
+              <span id="receipt-products-total" class="fw-bold"></span>
+            </div>
+            <div class="receipt-row" style="color: var(--text-secondary); font-size: 0.9rem;">
+              <span>المقدم:</span>
+              <span id="receipt-downpayment" class="fw-bold"></span>
+            </div>
+            <div class="receipt-row" style="color: var(--text-secondary); font-size: 0.9rem;">
+              <span>نسبة الفائدة:</span>
+              <span id="receipt-interest-rate" class="fw-bold"></span>
+            </div>
+            <div class="receipt-row" style="color: var(--text-secondary); font-size: 0.9rem;">
+              <span>قيمة الفائدة:</span>
+              <span id="receipt-interest-amount" class="fw-bold"></span>
+            </div>
+            <div class="receipt-row" style="color: var(--text-secondary); font-size: 0.9rem;">
+              <span>عدد الأشهر:</span>
+              <span id="receipt-months" class="fw-bold"></span>
+            </div>
+            <div class="receipt-row" style="color: var(--text-secondary); font-size: 0.9rem;">
+              <span>القسط الشهري:</span>
+              <span id="receipt-monthly-amount" class="fw-bold"></span>
+            </div>
+            <hr class="receipt-divider">
+          </div>
           <div class="receipt-row">
-            <span>الإجمالي:</span>
+            <span id="receipt-total-label">الإجمالي:</span>
             <span class="fw-bold fs-large"><span id="receipt-total"></span> ج.م</span>
           </div>
           <div class="receipt-row">
@@ -516,8 +557,7 @@
         <div class="receipt-actions">
           <button class="btn btn-primary" onclick="closeReceiptModal()"
             style="flex: 2; padding: 12px; font-size: 1.1rem;">إغلاق وبدء طلب جديد</button>
-          <!-- // TODO: implement print-specific CSS or print window -->
-          <button class="btn btn-secondary" onclick="window.print()" style="flex: 1; padding: 12px; font-size: 1.1rem;"
+          <button class="btn btn-secondary" onclick="printCurrentOrderReceipt()" style="flex: 1; padding: 12px; font-size: 1.1rem;"
             title="طباعة الفاتورة">طباعة</button>
         </div>
       </div>
@@ -525,8 +565,9 @@
   </div>
 
   <script src="js/components.js"></script>
+  <script src="js/components/receipt.js?v=2"></script>
   <script src="js/app.js"></script>
-  <script src="js/orders.js"></script>
+  <script src="js/orders.js?v=2"></script>
 </body>
 
 </html>

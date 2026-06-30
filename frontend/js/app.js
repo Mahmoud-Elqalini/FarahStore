@@ -18,7 +18,10 @@ const ERROR_MESSAGES = {
   SERVER_ERROR: 'حدث خطأ في الخادم، يرجى المحاولة مرة أخرى',
   CATEGORY_IN_USE: 'لا يمكن تعطيل قسم يحتوي على منتجات نشطة',
   SUPPLIER_IN_USE: 'لا يمكن تعطيل مورد مرتبط بمنتجات نشطة',
-  CUSTOMER_HAS_OBLIGATIONS: 'لا يمكن تعطيل عميل لديه طلبات مفتوحة أو أقساط غير مسددة'
+  CUSTOMER_HAS_OBLIGATIONS: 'لا يمكن تعطيل عميل لديه طلبات مفتوحة أو أقساط غير مسددة',
+  INACTIVE_PRODUCT: 'لا يمكن إعادة تخزين منتج معطل',
+  DUPLICATE_BARCODE: 'هذا الباركود مستخدم لمنتج آخر',
+  INVALID_CATEGORY: 'معرف القسم غير صحيح'
 };
 
 /**

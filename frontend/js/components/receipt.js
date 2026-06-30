@@ -41,8 +41,8 @@ function buildReceipt(order) {
 
   const discount = Number(order.discount || 0);
   const tax = Number(order.tax || 0);
-  const subtotal = Number(order.total_amount) - tax + discount;
-  const total = Number(order.total_amount) || 0;
+  const subtotal = Number(order.products_total || order.total_amount) - tax + discount;
+  const total = Number(order.final_total || order.total_amount) || 0;
   const paid = Number(order.paid_amount || total);
   const remaining = total - paid;
 
@@ -109,12 +109,31 @@ function buildReceipt(order) {
           <span>+${tax.toFixed(2)}</span>
         </div>
         ` : ''}
-        
         <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1rem; margin-bottom: 3px; border-top: 1px solid #000; padding-top: 5px;">
+          <span>الإجمالي للطباعة:</span>
+          <span>${subtotal.toFixed(2)} ج.م</span>
+        </div>
+        
+        ${order.payment_type === 'Installment' ? `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 0.85rem;">
+          <span>المقدم:</span>
+          <span>${Number(order.down_payment || 0).toFixed(2)}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 0.85rem;">
+          <span>نسبة الفائدة:</span>
+          <span>${Number(order.interest_rate || order.installment_rate || 0)}%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 0.85rem;">
+          <span>قيمة القسط الشهري:</span>
+          <span>${Number(order.monthly_amount || 0).toFixed(2)}</span>
+        </div>
+        ` : ''}
+
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1rem; margin-bottom: 3px; border-top: 1px dashed #000; padding-top: 5px;">
           <span>الإجمالي المطلوب:</span>
           <span>${total.toFixed(2)} ج.م</span>
         </div>
-        
+
         <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
           <span>المدفوع:</span>
           <span>${paid.toFixed(2)}</span>

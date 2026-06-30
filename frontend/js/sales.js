@@ -33,6 +33,7 @@ async function loadOrders() {
 function formatDateArabic(isoString) {
   if (!isoString) return '';
   const date = new Date(isoString);
+  if (isNaN(date)) return '';
   return date.toLocaleDateString('ar-EG', {
     year: 'numeric',
     month: 'short',
@@ -56,8 +57,8 @@ function renderOrders() {
   tbody.innerHTML = '';
 
   const searchQuery = (document.getElementById('search-input').value || '').toLowerCase().trim();
-  const paymentFilter = document.querySelector('input[name="filter_payment"]:checked').value;
-  const statusFilter = document.querySelector('input[name="filter_status"]:checked').value;
+  const paymentFilter = document.querySelector('input[name="filter_payment"]:checked')?.value || 'all';
+  const statusFilter = document.querySelector('input[name="filter_status"]:checked')?.value || 'all';
 
   const filtered = allOrders.filter(order => {
     // Search
@@ -92,7 +93,7 @@ function renderOrders() {
 
     // Invoice
     const tdInvoice = document.createElement('td');
-    tdInvoice.textContent = `ORD-${order.order_id}`;
+    tdInvoice.textContent = `ORD-${order.order_id ?? '-'}`;
     tdInvoice.style.fontWeight = 'bold';
     tdInvoice.style.color = 'var(--primary)';
 
@@ -106,7 +107,7 @@ function renderOrders() {
 
     // Total
     const tdTotal = document.createElement('td');
-    tdTotal.textContent = `${Number(order.total_amount).toFixed(2)}`;
+    tdTotal.textContent = `${Number(order.total_amount || 0).toFixed(2)}`;
 
     // Payment Type
     const tdPayment = document.createElement('td');
@@ -162,6 +163,7 @@ async function openDetailsModal(orderId) {
 
   try {
     const orderData = await apiCall(`/orders/${orderId}`);
+    window.currentModalOrderData = orderData;
 
     document.getElementById('modal-customer').textContent = orderData.customer_name || 'عميل غير معروف';
     document.getElementById('modal-datetime').textContent = orderData.created_at ? formatDateArabic(orderData.created_at) : '';
@@ -172,7 +174,7 @@ async function openDetailsModal(orderId) {
     statusEl.className = `status-badge ${statusInfo.class}`;
     statusEl.textContent = statusInfo.label;
 
-    document.getElementById('modal-total').textContent = Number(orderData.total_amount).toFixed(2);
+    document.getElementById('modal-total').textContent = Number(orderData.total_amount || 0).toFixed(2);
 
     if (orderData.payment_type === 'Installment') {
       document.getElementById('modal-remaining-container').style.display = 'flex';
@@ -201,10 +203,10 @@ async function openDetailsModal(orderId) {
         tdQty.textContent = item.quantity;
 
         const tdPrice = document.createElement('td');
-        tdPrice.textContent = Number(item.unit_price).toFixed(2);
+        tdPrice.textContent = Number(item.unit_price || 0).toFixed(2);
 
         const tdTotal = document.createElement('td');
-        const itemTotal = Number(item.unit_price) * item.quantity;
+        const itemTotal = Number(item.unit_price || 0) * item.quantity;
         tdTotal.textContent = itemTotal.toFixed(2);
 
         tr.appendChild(tdName);
@@ -218,10 +220,24 @@ async function openDetailsModal(orderId) {
 
   } catch (err) {
     console.error('Failed to load order details:', err);
+    document.getElementById('modal-customer').textContent = 'حدث خطأ';
+    document.getElementById('modal-total').textContent = '0.00';
     tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #e74c3c;">فشل تحميل تفاصيل الفاتورة</td></tr>';
   }
 }
 
 function closeDetailsModal() {
   document.getElementById('details-modal').classList.remove('active');
+  window.currentModalOrderData = null;
+}
+
+function printSaleReceipt() {
+  if (!window.currentModalOrderData) return;
+  try {
+    const receiptHtml = buildReceipt(window.currentModalOrderData);
+    printReceipt(receiptHtml);
+  } catch (err) {
+    showToast('حدث خطأ أثناء طباعة الفاتورة.', 'error');
+    console.error(err);
+  }
 }

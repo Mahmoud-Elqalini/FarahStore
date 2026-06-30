@@ -1,5 +1,4 @@
 // products.js
-const API_URL = '/api';
 
 // Memory Cache
 let cachedCategories = [];
@@ -49,21 +48,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 // --- Fetching Data ---
 async function fetchCategories() {
   try {
-    const res = await axios.get(`${API_URL}/categories`);
-    cachedCategories = res.data;
+    const res = await apiCall('/categories');
+    cachedCategories = Array.isArray(res) ? res : [];
   } catch (error) {
-    showToast('فشل في تحميل قائمة الأقسام', 'error');
-    console.error(error);
+    // apiCall handles toast and console logging
   }
 }
 
 async function fetchSuppliers() {
   try {
-    const res = await axios.get(`${API_URL}/suppliers`);
-    cachedSuppliers = res.data;
+    const res = await apiCall('/suppliers');
+    cachedSuppliers = Array.isArray(res) ? res : [];
   } catch (error) {
-    showToast('فشل في تحميل قائمة الموردين', 'error');
-    console.error(error);
   }
 }
 
@@ -92,14 +88,14 @@ async function fetchProducts() {
     showTableLoading();
     const includeInactive = showInactiveCheckbox.checked;
     const url = includeInactive
-      ? `${API_URL}/products?include_inactive=true`
-      : `${API_URL}/products`;
-    const res = await axios.get(url);
-    allProducts = res.data;
+      ? `/products?include_inactive=true`
+      : `/products`;
+    const res = await apiCall(url);
+    allProducts = Array.isArray(res) ? res : [];
     renderTable(allProducts);
   } catch (error) {
-    showToast('فشل في تحميل المنتجات', 'error');
-    console.error(error);
+    allProducts = [];
+    renderTable([]);
   } finally {
     hideTableLoading();
   }
@@ -143,11 +139,11 @@ function renderTable(data) {
       <td>${p.barcode ? escapeHTML(p.barcode) : '<span style="color:#999">-</span>'}</td>
       <td>${p.category_name ? escapeHTML(p.category_name) : '<span style="color:#999">-</span>'}</td>
       <td>${p.supplier_name ? escapeHTML(p.supplier_name) : '<span style="color:#999">-</span>'}</td>
-      <td>${Number(p.purchase_price).toFixed(2)}</td>
-      <td style="color:var(--primary-color); font-weight:600">${Number(p.selling_price).toFixed(2)}</td>
+      <td>${Number(p.purchase_price || 0).toFixed(2)}</td>
+      <td style="color:var(--primary-color); font-weight:600">${Number(p.selling_price || 0).toFixed(2)}</td>
       <td>
-        <span class="${p.stock_quantity <= 10 ? 'text-danger' : ''}" style="${p.stock_quantity <= 10 ? 'font-weight:bold' : ''}">
-          ${p.stock_quantity}
+        <span class="${(p.stock_quantity || 0) <= 10 ? 'text-danger' : ''}" style="${(p.stock_quantity || 0) <= 10 ? 'font-weight:bold' : ''}">
+          ${p.stock_quantity || 0}
         </span>
       </td>
       <td>${statusBadge}</td>
@@ -198,8 +194,7 @@ function closeProductModal() {
 
 async function editProduct(id) {
   try {
-    const res = await axios.get(`${API_URL}/products/${id}`);
-    const p = res.data;
+    const p = await apiCall(`/products/${id}`);
 
     document.getElementById('productId').value = p.product_id;
     document.getElementById('productName').value = p.product_name;
@@ -218,7 +213,6 @@ async function editProduct(id) {
     modalTitle.textContent = 'تعديل المنتج';
     productModal.classList.add('active');
   } catch (error) {
-    handleError(error, 'فشل في تحميل بيانات المنتج');
   }
 }
 
@@ -262,18 +256,17 @@ productForm.addEventListener('submit', async (e) => {
     btnSaveProduct.textContent = 'جاري الحفظ...';
 
     if (id) {
-      await axios.put(`${API_URL}/products/${id}`, payload);
+      await apiCall(`/products/${id}`, 'PUT', payload);
       showToast('تم تحديث المنتج بنجاح', 'success');
     } else {
-      const res = await axios.post(`${API_URL}/products`, payload);
-      const newSku = res.data.data?.sku || '';
+      const res = await apiCall(`/products`, 'POST', payload);
+      const newSku = res.data?.sku || '';
       showToast(`تمت إضافة المنتج بنجاح — كود SKU: ${newSku}`, 'success');
     }
     
     closeProductModal();
     await fetchProducts();
   } catch (error) {
-    handleError(error, 'حدث خطأ أثناء حفظ المنتج');
   } finally {
     btnSaveProduct.disabled = false;
     btnSaveProduct.textContent = 'حفظ المنتج';
@@ -315,14 +308,14 @@ restockForm.addEventListener('submit', async (e) => {
     btnConfirmRestock.disabled = true;
     btnConfirmRestock.textContent = 'جاري التخزين...';
 
-    const res = await axios.post(`${API_URL}/products/${id}/restock`, {
+    const res = await apiCall(`/products/${id}/restock`, 'POST', {
       quantity,
       purchase_price: purchasePrice,
       selling_price: sellingPrice
     });
 
-    const d = res.data.data;
-    const added = res.data.added_quantity;
+    const d = res.data;
+    const added = res.added_quantity;
 
     showToast(
       `✅ تم إعادة التخزين بنجاح\n\nالكمية المُضافة: ${added} وحدة\nالمخزون الحالي: ${d.stock_quantity} وحدة\nمتوسط سعر الشراء: ${Number(d.purchase_price).toFixed(2)} ج.م`,
@@ -332,7 +325,6 @@ restockForm.addEventListener('submit', async (e) => {
     closeRestockModal();
     await fetchProducts();
   } catch (error) {
-    handleError(error, 'حدث خطأ أثناء إعادة التخزين');
   } finally {
     btnConfirmRestock.disabled = false;
     btnConfirmRestock.textContent = 'تأكيد إعادة التخزين';
@@ -358,12 +350,11 @@ btnConfirmDeactivate.addEventListener('click', async () => {
     btnConfirmDeactivate.disabled = true;
     btnConfirmDeactivate.textContent = 'جاري التعطيل...';
     
-    await axios.delete(`${API_URL}/products/${productToDeactivateId}`);
+    await apiCall(`/products/${productToDeactivateId}`, 'DELETE');
     showToast('تم تعطيل المنتج بنجاح', 'success');
     closeDeactivateModal();
     await fetchProducts();
   } catch (error) {
-    handleError(error, 'حدث خطأ أثناء تعطيل المنتج');
     closeDeactivateModal();
   } finally {
     btnConfirmDeactivate.disabled = false;
@@ -373,11 +364,10 @@ btnConfirmDeactivate.addEventListener('click', async () => {
 
 async function activateProduct(id) {
   try {
-    await axios.put(`${API_URL}/products/${id}/activate`);
+    await apiCall(`/products/${id}/activate`, 'PUT');
     showToast('تم تفعيل المنتج بنجاح', 'success');
     await fetchProducts();
   } catch (error) {
-    handleError(error, 'حدث خطأ أثناء تفعيل المنتج');
   }
 }
 
@@ -389,30 +379,4 @@ function hideTableLoading() {
   tableLoading.style.display = 'none';
 }
 
-function handleError(error, defaultMsg) {
-  if (error.response && error.response.data && error.response.data.error_code) {
-    const code = error.response.data.error_code;
-    switch (code) {
-      case 'FK_NOT_EXISTS':
-        showToast('القسم أو المورد المختار غير صالح', 'error');
-        break;
-      case 'PRICE_LOGIC_ERROR':
-        showToast('خطأ: سعر البيع أقل من الشراء', 'error');
-        break;
-      case 'NOT_FOUND':
-        showToast('المنتج غير موجود', 'error');
-        break;
-      case 'INACTIVE_PRODUCT':
-        showToast('لا يمكن إعادة تخزين منتج معطل', 'error');
-        break;
-      case 'DUPLICATE_BARCODE':
-        showToast('هذا الباركود مستخدم لمنتج آخر', 'error');
-        break;
-      default:
-        showToast(error.response.data.error || defaultMsg, 'error');
-    }
-  } else {
-    showToast(defaultMsg, 'error');
-  }
-  console.error(error);
-}
+// handleError removed, as apiCall handles it globally via app.js

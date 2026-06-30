@@ -2,6 +2,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnBackup = document.getElementById("btn-backup");
     const btnRestore = document.getElementById("btn-restore");
 
+    function showDesktopOnlyError() {
+        Swal.fire("خطأ", "هذه الميزة متاحة فقط في تطبيق سطح المكتب.", "error");
+    }
+
     // Reusable Toast
     const Toast = Swal.mixin({
         toast: true,
@@ -18,7 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnBackup) {
         btnBackup.addEventListener("click", async () => {
             if (!window.electronAPI) {
-                Swal.fire("خطأ", "هذه الميزة متاحة فقط في تطبيق سطح المكتب.", "error");
+                showDesktopOnlyError();
                 return;
             }
 
@@ -55,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnRestore) {
         btnRestore.addEventListener("click", async () => {
             if (!window.electronAPI) {
-                Swal.fire("خطأ", "هذه الميزة متاحة فقط في تطبيق سطح المكتب.", "error");
+                showDesktopOnlyError();
                 return;
             }
 
@@ -76,14 +80,18 @@ document.addEventListener("DOMContentLoaded", () => {
             btnRestore.innerText = "جاري التحقق والاستعادة...";
             btnRestore.disabled = true;
 
+            let result;
             try {
-                const result = await window.electronAPI.restoreDatabase();
+                result = await window.electronAPI.restoreDatabase();
                 
                 if (!result || result.cancelled) {
                     return;
                 }
 
-                if (!result.success) {
+                if (result.success) {
+                    btnRestore.innerText = 'جاري إعادة تشغيل التطبيق...';
+                    // التطبيق هيعمل relaunch تلقائياً
+                } else {
                     Swal.fire({
                         title: "فشل الاستعادة",
                         text: result.error,
@@ -91,12 +99,13 @@ document.addEventListener("DOMContentLoaded", () => {
                         confirmButtonText: "حسناً"
                     });
                 }
-                // Note: If success=true, the app will relaunch, so we don't need a success alert here.
             } catch (err) {
                 Swal.fire("خطأ", "حدث خطأ غير متوقع: " + err.message, "error");
             } finally {
-                btnRestore.innerText = originalText;
-                btnRestore.disabled = false;
+                if (!result?.success) {
+                    btnRestore.innerText = originalText;
+                    btnRestore.disabled = false;
+                }
             }
         });
     }
@@ -110,6 +119,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const settingsDiv = document.getElementById("auto-backup-settings");
 
     const updateStatusUI = (lastBackup) => {
+        if (!statusDiv) return;
+
         if (!lastBackup || !lastBackup.date) {
             statusDiv.innerHTML = "لم يتم إنشاء أي نسخة تلقائية بعد.";
             return;
@@ -135,9 +146,9 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             const settings = await window.electronAPI.getSettings();
             
-            toggleAutoBackup.checked = settings.auto_backup_enabled;
-            selectFrequency.value = settings.auto_backup_frequency;
-            selectRetention.value = settings.auto_backup_retention;
+            toggleAutoBackup.checked = settings.auto_backup_enabled ?? false;
+            selectFrequency.value = settings.auto_backup_frequency ?? 'daily';
+            selectRetention.value = settings.auto_backup_retention ?? '7';
             
             settingsDiv.style.opacity = settings.auto_backup_enabled ? "1" : "0.5";
             selectFrequency.disabled = !settings.auto_backup_enabled;
@@ -180,7 +191,11 @@ document.addEventListener("DOMContentLoaded", () => {
     
     if (btnOpenFolder) {
         btnOpenFolder.addEventListener("click", () => {
-            if (window.electronAPI) window.electronAPI.openBackupFolder();
+            if (window.electronAPI) {
+                window.electronAPI.openBackupFolder();
+            } else {
+                showDesktopOnlyError();
+            }
         });
     }
 

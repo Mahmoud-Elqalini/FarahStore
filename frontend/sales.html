@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FarahStore - سجل المبيعات</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=4">
   <style>
     .filters-bar {
       display: flex;
@@ -217,6 +217,13 @@
       </div>
       <div class="modal-body">
         
+        <!-- Store Info -->
+        <div style="text-align: center; margin-bottom: 20px; border-bottom: 1px dashed #ccc; padding-bottom: 15px;">
+          <h3 style="margin: 0; color: var(--text-primary); font-size: 1.4rem;">FarahStore 💎</h3>
+          <p style="margin: 4px 0 2px; font-size: 0.9rem; color: var(--text-secondary);">مشله بجانب المحطه، كفرالزيات، طنطا، الغربية</p>
+          <p style="margin: 0; font-size: 0.9rem; color: var(--text-secondary);">ت: 01019809455</p>
+        </div>
+
         <!-- Customer Info Card -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: rgba(139, 92, 246, 0.05); padding: 20px; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2);">
           <div>
@@ -260,15 +267,17 @@
         </div>
 
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeDetailsModal()" style="width: 100%;">إغلاق التفاصيل</button>
+      <div class="modal-footer" style="display: flex; gap: 10px;">
+        <button class="btn btn-primary" onclick="printSaleReceipt()" style="flex: 1;">طباعة الفاتورة</button>
+        <button class="btn btn-secondary" onclick="closeDetailsModal()" style="flex: 1;">إغلاق التفاصيل</button>
       </div>
     </div>
   </div>
 
   <script src="js/components.js"></script>
+  <script src="js/components/receipt.js?v=2"></script>
   <script src="js/app.js"></script>
-  <script src="js/sales.js"></script>
+  <script src="js/sales.js?v=2"></script>
 </body>
 
 </html>

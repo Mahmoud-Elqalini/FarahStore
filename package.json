@@ -20,6 +20,7 @@
       "backend/**/*",
       "frontend/**/*",
       "main.js",
+      "preload.js",
       "package.json"
     ]
   },

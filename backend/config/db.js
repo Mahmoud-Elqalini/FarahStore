@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS orders (
     total_amount REAL NOT NULL CHECK (total_amount > 0),
     order_status TEXT DEFAULT 'Active' CHECK (order_status IN ('Active','Completed','Cancelled')),
     installment_rate REAL DEFAULT 0,
+    down_payment REAL DEFAULT 0,
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
 );
 
@@ -147,6 +148,12 @@ CREATE INDEX IF NOT EXISTS idx_installments_order ON installments(order_id);
 `);
 
 log.info("✅ Database schema initialized successfully");
+
+try {
+  db.exec("ALTER TABLE orders ADD COLUMN down_payment REAL DEFAULT 0;");
+} catch (e) {
+  // Column already exists
+}
 
 db.CURRENT_SCHEMA_VERSION = CURRENT_SCHEMA_VERSION;
 db.dbPath = dbPath;

@@ -26,6 +26,7 @@
   --border-radius: 12px;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow: var(--shadow-md);
   
   /* Transitions */
   --transition: all 0.3s ease;
@@ -372,6 +373,7 @@ tr:hover td {
 
 .toast.success { border-right-color: var(--status-completed); }
 .toast.error { border-right-color: var(--status-cancelled); }
+.toast.warning { border-right-color: var(--status-pending); }
 
 /* 7. Skeleton Loading */
 .skeleton {
@@ -517,8 +519,7 @@ tr:hover td {
   .nav-badge {
     position: absolute;
     top: 4px;
-    right: 50%;
-    transform: translateX(-15px); /* Adjust based on icon size */
+    right: calc(50% - 22px); /* Perfectly aligns relative to center icon width */
   }
   
   .main-content {
@@ -618,33 +619,40 @@ tr:hover td {
     visibility: hidden;
   }
 
-  /* Show only the active modal */
-  #receipt-modal.active, #receipt-modal.active * {
+  @page {
+    margin: 0; /* Remove default browser margins and extra pages */
+  }
+
+  /* Hide EVERYTHING physically from the layout to avoid blank pages */
+  .app-container, .modal-overlay {
+    display: none !important;
+  }
+
+  /* Show only the print area */
+  #print-area, #print-area * {
     visibility: visible;
   }
 
-  /* Remove overlay background and center it correctly for print */
-  #receipt-modal.active {
+  #print-area {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
-    height: auto;
-    background: transparent !important;
-    backdrop-filter: none;
-    align-items: flex-start; /* So it starts at top of page */
-  }
-
-  /* Reset modal content styles for a clean print */
-  .modal-content {
-    border: none !important;
-    box-shadow: none !important;
-    width: 100%;
-    max-width: 100%;
     margin: 0;
     padding: 0;
-    transform: none !important;
+    display: flex;
+    justify-content: center; /* Center the receipt horizontally on A4 if printed on normal printer */
   }
+
+  /* Constrain the receipt to thermal printer size (80mm) */
+  .thermal-receipt {
+    width: 80mm;
+    margin: 0;
+    padding: 10px;
+    font-size: 12px;
+  }
+
+
   
   .receipt-card {
     background: transparent !important;

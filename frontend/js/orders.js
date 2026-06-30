@@ -394,6 +394,8 @@ async function handleCheckout() {
   const paymentType = document.querySelector('input[name="payment_type"]:checked').value;
   const months = parseInt(document.getElementById('installments-months').value);
   const firstDueDate = document.getElementById('installments-first-date').value;
+  const downPayment = parseFloat(document.getElementById('installments-downpayment').value) || 0;
+  const interestRate = parseFloat(document.getElementById('installments-interest').value) || 0;
 
   if (paymentType === 'Installment') {
     if (!months || months < 1) {
@@ -414,6 +416,12 @@ async function handleCheckout() {
       showToast('عفواً، لا يمكن أن يكون تاريخ أول قسط في الماضي', 'error');
       return;
     }
+
+    const cartTotal = cart.reduce((sum, item) => sum + (item.quantity * item.selling_price), 0);
+    if (downPayment >= cartTotal) {
+      showToast('المقدم يجب أن يكون أقل من إجمالي الفاتورة', 'error');
+      return;
+    }
   }
 
   const payload = {
@@ -425,6 +433,8 @@ async function handleCheckout() {
   if (paymentType === 'Installment') {
     payload.months = months;
     payload.first_due_date = firstDueDate;
+    payload.down_payment = downPayment;
+    payload.interest_rate = interestRate;
   }
 
   const btn = document.getElementById('checkout-btn');
@@ -433,6 +443,7 @@ async function handleCheckout() {
 
   try {
     const res = await apiCall('/orders', 'POST', payload);
+    window.currentReceiptOrderId = res.order_id;
     
     // Show Receipt
     const customer = customersCache.find(c => c.customer_id === parseInt(selectedCustomerId));
@@ -445,6 +456,24 @@ async function handleCheckout() {
     document.getElementById('receipt-customer').textContent = customerName;
     document.getElementById('receipt-datetime').textContent = formattedDateTime;
     document.getElementById('receipt-payment').textContent = res.payment_type === 'Cash' ? 'كاش' : 'تقسيط';
+    
+    const installmentDetails = document.getElementById('installment-details');
+    if (res.payment_type === 'Installment') {
+      if (installmentDetails) installmentDetails.style.display = 'block';
+      
+      document.getElementById('receipt-products-total').textContent = Number(res.products_total).toFixed(2) + ' ج.م';
+      document.getElementById('receipt-downpayment').textContent = Number(res.down_payment).toFixed(2) + ' ج.م';
+      document.getElementById('receipt-interest-rate').textContent = res.interest_rate + ' %';
+      document.getElementById('receipt-interest-amount').textContent = (Number(res.total_amount) - Number(res.products_total)).toFixed(2) + ' ج.م';
+      document.getElementById('receipt-months').textContent = res.months + ' أشهر';
+      document.getElementById('receipt-monthly-amount').textContent = Math.round(res.monthly_amount) + ' ج.م';
+      document.getElementById('receipt-total-label').textContent = 'الإجمالي (مع الفائدة):';
+    } else {
+      if (installmentDetails) installmentDetails.style.display = 'none';
+      const label = document.getElementById('receipt-total-label');
+      if (label) label.textContent = 'الإجمالي:';
+    }
+
     document.getElementById('receipt-total').textContent = Number(res.total_amount).toFixed(2);
     document.getElementById('receipt-paid').textContent = Number(res.paid_amount).toFixed(2);
     document.getElementById('receipt-remaining').textContent = Number(res.remaining_balance).toFixed(2);
@@ -477,6 +506,15 @@ function closeReceiptModal() {
   renderCustomerGrid(recentCustomers);
   document.querySelector('input[name="payment_type"][value="Cash"]').checked = true;
   document.getElementById('installment-fields').style.display = 'none';
+  
+  // Reset installment fields to defaults
+  document.getElementById('installments-downpayment').value = '0';
+  document.getElementById('installments-interest').value = '15';
+  document.getElementById('installments-months').value = '12';
+  const defaultDate = new Date();
+  defaultDate.setMonth(defaultDate.getMonth() + 1);
+  document.getElementById('installments-first-date').valueAsDate = defaultDate;
+
   document.getElementById('product-search').value = '';
   productsCache = recentProducts;
   renderCatalog();
@@ -487,4 +525,19 @@ function closeReceiptModal() {
   const btn = document.getElementById('checkout-btn');
   btn.disabled = false;
   btn.textContent = '✅ إتمام الطلب';
+
+  window.currentReceiptOrderId = null;
+}
+
+// Print Current Order
+async function printCurrentOrderReceipt() {
+  if (!window.currentReceiptOrderId) return;
+  try {
+    const orderRes = await apiCall(`/orders/${window.currentReceiptOrderId}`);
+    const receiptHtml = buildReceipt(orderRes);
+    printReceipt(receiptHtml);
+  } catch (err) {
+    showToast('حدث خطأ أثناء محاولة طباعة الفاتورة.', 'error');
+    console.error(err);
+  }
 }
